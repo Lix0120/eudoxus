@@ -8,42 +8,62 @@ def df (f : ℤ → ℤ) : ℤ → ℤ → ℤ := λ p q, f (p + q) - f (p) - f 
 
 def almost_homo (f : ℤ → ℤ) : Prop := ∃ C, ∀ p q, abs (df f p q) < C 
 
-@[simp] lemma d_equal (f : ℤ → ℤ) (p q : ℤ) : df f p q = f (p + q) - f (p) - f (q) := rfl
+@[simp] lemma df_eq (f : ℤ → ℤ) (p q : ℤ) : df f p q = f (p + q) - f (p) - f (q) := rfl
 
 def S := {f | almost_homo f}
 
-instance add_group_S : add_group S := {
-  add := λ f g, ⟨λ z, f.1 z + g.1 z, begin
+def S.add : S → S → S := λ f g, ⟨λ z, f.1 z + g.1 z, 
+begin
+  rcases f with ⟨f, C1, hf⟩,
+  rcases g with ⟨g, C2, hg⟩,
+  use C1 + C2,
+  intros p q,
+  specialize hf p q,
+  specialize hg p q,
+  have h1 : df (λ (z : ℤ), f z + g z) p q = df f p q + df g p q,
+    simp,
+    ring,
+  rw h1,
+  linarith [abs_add (df f p q) (df g p q)],
+end⟩
+
+def S.neg : S → S := λ f, ⟨λ p, - f.1 p, 
+begin
     rcases f with ⟨f, C1, hf⟩,
-    rcases g with ⟨g, C2, hg⟩,
-    use C1 + C2,
+    use C1,
+    simp,
     intros p q,
     specialize hf p q,
-    specialize hg p q,
-    have h1 : df (λ (z : ℤ), f z + g z) p q = df f p q + df g p q,
-      simp,
+    simp at hf,
+    have h : f p - f (p + q) + f q = - (f (p + q) - f p - f q),
       ring,
-    rw h1,
-    linarith [abs_add (df f p q) (df g p q)],
-  end⟩,
+    rw [h, abs_neg],
+    exact hf,
+end⟩
+
+def S.zero : S := ⟨λ p, 0, 1, by simp⟩
+
+@[simp] lemma S.add_eq (f g : S) : S.add f g = ⟨λ p, f.1 p + g.1 p, S.add._proof_1 f g⟩ := rfl
+
+@[simp] lemma S.neg_eq (f : S) : S.neg f = ⟨λ p, - f.1 p, S.neg._proof_1 f⟩ := rfl
+
+instance add_group_S : add_group S := {
+  add := λ f g, S.add f g,
   add_assoc := begin
     intros f g h,
     simp,
     ring,
   end,
-  zero := ⟨λ p, 0, begin
-    use 1,
-    simp,
-  end⟩,
+  zero := ⟨λ p, 0, 1, by simp⟩,
   zero_add := begin
     intro f,
-    unfold has_add.add,
+    show S.add ⟨λ p, 0, 1, by simp⟩ f = f,
     simp,
   end,
   add_zero := begin
-    intro f,
-    unfold has_add.add,
-    simp,  
+    intro f, 
+    show S.add f ⟨λ p, 0, 1, by simp⟩ = f,
+    simp,
   end,
   neg := λ f, ⟨λ p, - f.1 p, begin
     rcases f with ⟨f, C1, hf⟩,
@@ -59,14 +79,20 @@ instance add_group_S : add_group S := {
   end⟩,
   add_left_neg := begin
     intro f,
-    unfold has_add.add add_semigroup.add has_zero.zero,
+    show S.add (S.neg f) f = ⟨λ (p : ℤ), 0, _⟩,
     simp,
   end }
+
+@[simp] lemma S.add_eq' (f g : S) : f + g = S.add f g := rfl
+
+@[simp] lemma S.neg_eq' (f : S) : -f = S.neg f := rfl
+
+@[simp] lemma S.zero_eq' : (0 : S) = ⟨λ p, 0, 1, by simp⟩ := rfl
 
 instance : add_comm_group S := {
   add_comm := begin
     intros f g,
-    unfold has_add.add add_semigroup.add has_add.add add_group.add,
+    show S.add f g = S.add g f,
     simp,
     simp_rw [add_comm],
   end,
@@ -75,7 +101,6 @@ instance : add_comm_group S := {
 def B : add_subgroup S :=
 { carrier := {f : S | ∃ C, ∀ p, abs (f.1 p) < C},
   zero_mem' := begin
-    unfold has_zero.zero add_monoid.zero add_group.zero,
     use 1,
     intro p,
     simp,
@@ -86,14 +111,12 @@ def B : add_subgroup S :=
     intro p,
     specialize hf p,
     specialize hg p,
-    unfold has_add.add add_semigroup.add add_monoid.add add_group.add,
     simp,
     change abs (f.1 p + g.1 p) < C1 + C2,
     linarith [abs_add (f.1 p) (g.1 p)],
   end,
   neg_mem' := begin
     rintro f ⟨C, hf⟩,
-    unfold has_neg.neg add_group.neg,
     use C,
     intro p,
     specialize hf p,
@@ -101,6 +124,8 @@ def B : add_subgroup S :=
     simp,
     exact hf,
   end }
+
+@[simp] lemma in_B_iff (f : S) : f ∈ B ↔ ∃ C, ∀ p, abs (f.1 p) < C := iff.rfl
 
 def eudoxus_reals_group := quotient_add_group.quotient B
 notation `𝔼` := eudoxus_reals_group
@@ -183,7 +208,15 @@ instance : has_coe_t ↥S 𝔼 := quotient_add_group.has_coe_t
 
 instance : has_lift_t ↥S 𝔼 := coe_to_lift
 
+lemma 𝔼.zero_eq : (0 : 𝔼) = ↑(0 : S) := rfl
+
 def P := {e : 𝔼 | ∃ (f : S) (H : ↑f = e), ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p}
+
+lemma P_eq : P = {e : 𝔼 | ∃ (f : S) (H : ↑f = e), ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p} := rfl
+
+@[simp] lemma upper_bounds_eq {S : set ℤ} : upper_bounds S = {x : ℤ | ∀ ⦃a : ℤ⦄, a ∈ S → a ≤ x} := rfl
+
+@[simp] lemma lower_bounds_eq {S : set ℤ} : lower_bounds S = {x : ℤ | ∀ ⦃a : ℤ⦄, a ∈ S → x ≤ a} := rfl
 
 lemma lemma2 (f : S) (hf : ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p) :
   (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) :=
@@ -203,7 +236,6 @@ begin
     have hbdd : bdd_above ((abs ∘ f.1) '' (set.Ico 0 M)),
       apply set.finite.bdd_above hfin,
     cases hbdd with m hm,
-    unfold upper_bounds at hm,
     simp at hm,
     use m + 1,
     intros r h0r hrM,
@@ -281,7 +313,7 @@ begin
   set g := -f with hgf,
   have hfval : ∀ p, (-f).val p = -(f.val p),
     intro p,
-    unfold has_neg.neg add_group.neg,
+    refl,
   have key : ∀ (C : ℤ), 0 < C → (∃ (N : ℤ), ∀ (p : ℤ), N < p → C < g.val p),
     apply lemma2 g,
     simp_rw [hgf, hfval],
@@ -488,21 +520,18 @@ end
 lemma lemma10 : (0 : 𝔼) ∈ P → false :=
 begin
   intro hfalse,
-  unfold P at hfalse,
+  rw P_eq at hfalse,
   rcases hfalse with ⟨f, H, hfalse⟩,
   rw lemma8 at hfalse,
-  unfold has_zero.zero add_monoid.zero add_group.zero add_comm_group.zero at H,
+  rw 𝔼.zero_eq at H,
   rw quotient_add_group.eq at H,
-  have hf : -f + 0 ∈ B,
-    unfold has_zero.zero add_monoid.zero add_group.zero,
-    exact H,
-  simp at hf,
-  exact lemma7 f ⟨hfalse, hf⟩,
+  simp at H,
+  exact lemma7 f ⟨hfalse, H⟩,
 end
 
 lemma lemma11 {a : 𝔼} : a ∈ P → -a ∈ P → false :=
 begin
-  unfold P,
+  rw P_eq,
   rintro ⟨f1, hf1, ha1⟩ ⟨f2, hf2, ha2⟩,
   rw ← hf1 at hf2,
   have hf1f2 : ↑f2 + ↑f1 = (0 : 𝔼), 
@@ -515,8 +544,8 @@ begin
       refl,
     rw [heq, h0, ← hf1f2],
   rw quotient_add_group.eq at hf1f2',
-  simp at hf1f2',
-  unfold B at hf1f2',
+  simp only [nonempty_of_inhabited, sub_zero, abs_zero, S.neg_eq', zero_add, df_eq, S.neg_eq,
+    in_B_iff, neg_zero] at hf1f2',
   cases hf1f2' with C hf1f2',
   rw lemma8 at *,
   have h0C : 0 < C,
@@ -552,13 +581,11 @@ begin
   simp,
   have hfin : set.finite (f '' (set.Ioo (-C2) (C2))) := lemma13 C2,
   cases set.finite.bdd_above hfin with C3 hC3,
-  unfold upper_bounds at hC3,
   simp at hC3,
   cases set.finite.bdd_below hfin with C4 hC4,
-  unfold lower_bounds at hC4,
   simp at hC4,
   use C1 + C1 + max (abs (C4)) (abs (C3)),
-  unfold df at *,
+  simp_rw df_eq at *,
   intros p q,
   have hf' := hf,
   set t := g (p + q) - g p - g q with ht,
@@ -590,48 +617,33 @@ lemma lemma15 : ∀ {f1 g1 f2 g2 : S}, (@coe ↥S 𝔼) eudoxus_reals_group.has_
 begin
   rintros ⟨f1, hf1⟩ ⟨g1, hfg⟩ ⟨f2, Bf2, hf2⟩ ⟨g2, hg2⟩ hf1f2 hg1g2,
   rw quotient_add_group.eq at *,
-  unfold B at *,
   cases hf1f2 with Cf hf1f2,
   cases hg1g2 with Cg hg1g2,
   have hfin : set.finite (f2 '' (set.Ioo (-Cg) (Cg))) := lemma13 Cg,
   cases set.finite.bdd_above hfin with C3 hC3,
-  unfold upper_bounds at hC3,
   simp at hC3,
   cases set.finite.bdd_below hfin with C4 hC4,
-  unfold lower_bounds at hC4,
   simp at hC4,
   use Cf + Bf2 + max (abs (C4)) (abs (C3)),
-  unfold df at hf2,
+  simp_rw df_eq at hf2,
   intros x,
-  set t := (g1 x).neg + g2 x with ht,
-  have htrivial : ∀ (a : ℤ), a.neg = -a, 
-    intro a, 
-    refl,
+  set t := -g1 x + g2 x with ht,
   have heq : g2 x = t + g1 x,
-    have := htrivial (g1 x),
-    rw [ht, this],
+    rw ht,
     ring,
   specialize hf1f2 (g1 x),
   specialize hg1g2 x,
   specialize hf2 t (g1 x),
-  unfold has_add.add add_semigroup.add add_semigroup.add add_monoid.add add_group.add 
-    has_neg.neg add_group.neg at hf1f2,
   simp at hf1f2,
-  unfold has_add.add add_semigroup.add add_semigroup.add add_monoid.add add_group.add 
-    has_neg.neg add_group.neg at hg1g2,
   simp at hg1g2,
   rw [← ht, abs_lt] at hg1g2,
   specialize @hC3 (f2 t) t hg1g2.1 hg1g2.2 rfl,
   specialize @hC4 (f2 t) t hg1g2.1 hg1g2.2 rfl,
   rw ← heq at hf2,
-  unfold has_add.add add_semigroup.add add_semigroup.add add_monoid.add add_group.add 
-    has_neg.neg add_group.neg,
   simp,
-  have h123 := abs_add_three ((f1 (g1 x)).neg + f2 (g1 x)) (f2 (g2 x) - f2 t - f2 (g1 x)) (f2 t),
-  have heq : ((f1 (g1 x)).neg + f2 (g1 x)) + (f2 (g2 x) - f2 t - f2 (g1 x)) + f2 t = 
-    (f1 (g1 x)).neg + f2 (g2 x),
-    have hf1g1n := htrivial (f1 (g1 x)),
-    rw hf1g1n,
+  have h123 := abs_add_three (-(f1 (g1 x))+ f2 (g1 x)) (f2 (g2 x) - f2 t - f2 (g1 x)) (f2 t),
+  have heq : (-(f1 (g1 x)) + f2 (g1 x)) + (f2 (g2 x) - f2 t - f2 (g1 x)) + f2 t = 
+    -(f1 (g1 x)) + f2 (g2 x),
     ring,
   rw heq at h123,
   have hft : abs (f2 t) ≤ max (abs (C4)) (abs (C3)),
@@ -654,15 +666,23 @@ begin
   exact ↑h,
 end
 
+@[simp] lemma 𝔼.mul_eq (a b : 𝔼) : 𝔼.mul a b = (begin
+  choose f hf using lemma12 a,
+  choose g hg using lemma12 b,
+  let h : ↥S := ⟨f.1 ∘ g.1, lemma14 f g⟩,
+  exact ↑h,
+end : 𝔼) := rfl
+
 lemma lemma17 : ∀ x y : S, 𝔼.mul ↑x ↑y = ↑(⟨x.1 ∘ y.1, lemma14 x y⟩ : S) :=
 begin
   intros x y,
-  unfold 𝔼.mul,
+  simp,
   rw quotient_add_group.eq,
   have hxeq := classical.some_spec (lemma12 ↑x),
   have hyeq := classical.some_spec (lemma12 ↑y),
   apply lemma15 hxeq hyeq,
 end
+
 
 lemma lemma18 : ∀ x y : S, x = y → -x + y ∈ B :=
 begin
@@ -670,8 +690,6 @@ begin
   rw hxy,
   simp,
   use 1,
-  intro p,
-  simp,
 end
 
 lemma lemma19 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
@@ -929,8 +947,6 @@ lemma lemma25 (f g : S) : -(⟨f.1 ∘ g.1, lemma14 f g⟩ : S) + (⟨g.1 ∘ f.
 begin
   rcases lemma24 f g with ⟨D, E, hDE⟩,
   simp,
-  unfold has_add.add add_semigroup.add add_monoid.add add_group.add has_neg.neg add_group.neg,
-  simp,
   change ∃ (C : ℤ), ∀ (p : ℤ), abs (-(f.1 (g.1 p)) + g.1 (f.1 p)) < C,
   have h1 : ∀ p (H : abs E < abs p), abs (f.val (g.val p) - g.val (f.val p)) < D + 1,
     intros p hp,
@@ -952,7 +968,6 @@ begin
     have hbdd : bdd_above ((λ p, abs (f.val (g.val p) - g.val (f.val p))) '' (set.Icc (-(abs E)) (abs E))),
       apply set.finite.bdd_above hfin,
     cases hbdd with m hm,
-    unfold upper_bounds at hm,
     simp at hm,
     use m + 1,
     intros p hpE,
@@ -997,9 +1012,7 @@ begin
   rw heq at H1,
   rw [← hu, ← hv, ← hw],
     rw [H1, H2, H3, ← heq, quotient_add_group.eq],
-    simp,
     apply lemma18,
-    unfold has_add.add add_semigroup.add add_monoid.add add_group.add,
     simp,
 end
 
@@ -1022,7 +1035,7 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
     rw [hab, ← habc, ← H1, hw] at H2,
     rw [hv, hw] at H3,
     rw [hbc, ← habc', ← H3, hu] at H4,
-    unfold has_mul.mul,
+    show 𝔼.mul (𝔼.mul a b) c = 𝔼.mul a (𝔼.mul b c),
     rw [H2, H4],
   end,
   one := ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S),
@@ -1030,7 +1043,7 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
     intro a,
     cases lemma12 a with u hu,
     rw ← hu,
-    unfold has_one.one has_mul.mul semigroup.mul 𝔼.mul,
+    change 𝔼.mul ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S) (↑u : 𝔼) = ↑u,
     simp,
     rw quotient_add_group.eq,
     have h1 := classical.some_spec (lemma12 ↑u),
@@ -1046,7 +1059,7 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
     intro a,
     cases lemma12 a with u hu,
     rw ← hu,
-    unfold has_one.one has_mul.mul semigroup.mul 𝔼.mul,
+    change 𝔼.mul (↑u : 𝔼) ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S) = ↑u,
     simp,
     rw quotient_add_group.eq,
     have h1 := classical.some_spec (lemma12 ↑u),
@@ -1060,7 +1073,7 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
   end,
   left_distrib := begin
     intros a b c,
-    unfold has_mul.mul,
+    change 𝔼.mul a (b + c) = 𝔼.mul a b + 𝔼.mul a c,
     rw [𝔼.mul_comm],
     have := 𝔼.mul_comm a c,
     symmetry,
@@ -1070,15 +1083,18 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
   end,
   right_distrib := begin
     intros a b c,
-    unfold has_mul.mul,
+    change 𝔼.mul (a + b) c = 𝔼.mul a c + 𝔼.mul b c,
     apply 𝔼.mul_right_distrib,
   end, 
   mul_comm := begin
     intros a b,
-    unfold has_mul.mul,
     apply 𝔼.mul_comm,
   end,
   ..add_comm_group_𝔼 }
+
+@[simp] lemma 𝔼.mul_eq' (a b : 𝔼) : a * b = 𝔼.mul a b := rfl
+
+@[simp] lemma 𝔼.one_eq' : (1 : 𝔼) = ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S) := rfl
 
 lemma lemma26 {f : ℤ → ℤ} : (∀ p < 0, f p = -(f (-p))) → (∃ C, ∀ m n (hm : 0 ≤ m) (hn : 0 ≤ n),
   abs (df f m n) < C) → f ∈ S :=
@@ -1196,12 +1212,13 @@ end
 
 def P' := {f : S | ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p}
 
+@[simp] lemma in_P'_iff (f : S) : f ∈ P' ↔ ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p := iff.rfl
+
 lemma lemma28 (f : P') : ∀ p (hp : 0 ≤ p), ∃ n (hn : n ∈ {m | p ≤ f.1.1 m ∧ 0 ≤ m}), ∀ x ∈ {m | p ≤ f.1.1 m ∧ 0 ≤ m}, n ≤ x :=
 begin
   intros p hp,
   cases f with f hf,
-  unfold P' at hf,
-  simp only [set.mem_set_of_eq] at hf,
+  rw in_P'_iff at hf,
   rw lemma8 f at hf,
   have hp1 : 0 < p + 1,
     linarith,
@@ -1231,14 +1248,12 @@ begin
   cases lemma12 a with u hu,
   cases lemma5 u,
     left,
-    unfold P,
     use [u.1, u.2],
     simp only [subtype.coe_eta, subtype.val_eq_coe],
     use [hu, h],
   cases h,
     right,
     right,
-    unfold P,
     have : ↑-u = -a,
       rw ← hu,
       refl,
@@ -1287,7 +1302,7 @@ end)
 lemma lemma31 (f : P') :  ∀ n (hn : 0 ≤ n), 0 ≤ 𝔼.inv.g1 f n :=
 begin
   intros n hn,
-  unfold 𝔼.inv.g1,
+  simp only [𝔼.inv.g1],
   split_ifs,
   have := classical.some_spec (lemma28 f n hn),
   cases this with hsome1 hsome2,
@@ -1307,8 +1322,7 @@ begin
     linarith,
   clear hfalse,
   cases f with f hf,
-  unfold P' at hf,
-  rw set.mem_set_of_eq at hf,
+  rw in_P'_iff at hf,
   have hfalse1 :  ∀ (n : ℤ), 0 < n → 𝔼.inv.g1 ⟨f, hf⟩ n = 0,
     intros n hn0,
     specialize hfalse' n hn0,
@@ -1319,7 +1333,7 @@ begin
   have hfalse2 : ∀ (n : ℤ), 0 < n → n ≤ f.1 0,
     intros n hn,
     specialize hfalse1 n hn,
-    unfold 𝔼.inv.g1 at hfalse1, 
+    simp only [𝔼.inv.g1] at hfalse1, 
     split_ifs at hfalse1,
       have hn' : 0 ≤ n,
         linarith,
@@ -1343,7 +1357,7 @@ end
 lemma lemma33 (f : P') : ∀ n m (hn : 0 ≤ n) (hm : n ≤ m), 𝔼.inv.g1 f n ≤ 𝔼.inv.g1 f m :=
 begin
   intros n m hn hm,
-  unfold 𝔼.inv.g1,
+  simp only [𝔼.inv.g1],
   have hm' : 0 ≤ m,
     linarith,
   split_ifs,
@@ -1378,7 +1392,7 @@ end
 lemma lemma35 (f : P') :  ∀ n (hn : 0 ≤ n), n ≤ f.1.1 (𝔼.inv.g1 f n) :=
 begin
   intros n h0n,
-  unfold 𝔼.inv.g1,
+  simp only [𝔼.inv.g1],
   split_ifs,
   have := classical.some_spec (lemma28 f n h0n),
   set gn := classical.some (lemma28 f n h0n) with hgn,
@@ -1424,8 +1438,7 @@ begin
     exact this,
   clear hfalse,
   cases f with f hf,
-  unfold P' at hf,
-  rw set.mem_set_of_eq at hf,
+  rw in_P'_iff at hf,
   have := lemma2 f hf,
   have hD : ∃ D, ∀ p, abs (f.1 p + f.1 (-p)) < D,
     rcases f with ⟨f, E, hE⟩,
@@ -1565,7 +1578,7 @@ end
 lemma lemma43 (f : P') :  ∀ n (hn : 0 ≤ n), 0 < 𝔼.inv.g1 f n → (f.1.1 (𝔼.inv.g1 f n - 1) < n ∧ n ≤ f.1.1 (𝔼.inv.g1 f n)) :=
 begin
   intros n h0n h,
-  unfold 𝔼.inv.g1,
+  simp only [𝔼.inv.g1],
   split,
   { split_ifs,
     have := classical.some_spec (lemma28 f n h0n),
@@ -1578,7 +1591,7 @@ begin
     have : gn - 1 ∈ {m : ℤ | n ≤ f.val.val m ∧ 0 ≤ m},
       rw set.mem_set_of_eq,
       use hfgn,
-      unfold 𝔼.inv.g1 at h,
+      simp only [𝔼.inv.g1] at h,
       split_ifs at h,
       rw ← hgn at *,
       linarith,
@@ -1594,7 +1607,7 @@ begin
   use 2 * C + abs (f 1),
   intros m n hgn,
   rw ←hgn,
-  simp,
+  simp only [sub_zero, neg_add_rev, zero_add, set.mem_set_of_eq, add_neg_le_iff_le_add', neg_zero],
   have : ∀ p q, abs (f (p - q) - (f p - f (q - 1))) < 2 * C + abs (f 1),
     intros p q,
     have hC' := hC,
@@ -1729,8 +1742,7 @@ begin
     simp,
   have hbdd : bdd_above (set.image2 (λ m n, abs (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n)) {m | 0 ≤ m ∧ m < N} {n | 0 ≤ n ∧ n < N}),
     apply set.finite.bdd_above hfs1,
-  unfold bdd_above at hbdd,
-  unfold upper_bounds at hbdd,
+  simp at hbdd,
   cases hbdd with C1 hC1,
   simp at hC1,
   use max C C1 + 1,
@@ -1758,7 +1770,7 @@ noncomputable def 𝔼.inv.g : P' → S := λ f, ⟨λ p, 𝔼.inv.g1 f p,
 begin
   apply lemma26,
   { intros p hp,
-    unfold 𝔼.inv.g1,
+    simp only [𝔼.inv.g1],
     split_ifs with hp1 hp2,
           exfalso,
           linarith,
@@ -1789,7 +1801,7 @@ begin
       refl,
     rw ← this at *,
     specialize hC 1 (g.1 n - 1),
-    simp only [add_sub_cancel'_right, d_equal] at hC,
+    simp only [add_sub_cancel'_right, df_eq] at hC,
     cases key,
     rw abs_lt at *,
     cases hC,
@@ -1804,10 +1816,9 @@ begin
     simp,
   have hbdd : bdd_above ((λ n, abs (f.1.1 ((𝔼.inv.g f).1 n) - n)) '' set.Ico 0 N),
     apply set.finite.bdd_above hfin,
-  unfold bdd_above at hbdd,
-  unfold upper_bounds at hbdd,
+  simp at hbdd,
   cases hbdd with C1 hC1,
-  simp only [and_imp, set.mem_Ico, set.mem_image, set.mem_set_of_eq, exists_imp_distrib] at hC1,
+  simp only [upper_bounds_eq, and_imp, set.mem_Ico, set.mem_image, set.mem_set_of_eq, exists_imp_distrib] at hC1,
   use max C C1 + 1,
   intros n hn,
   have hnN := lt_or_le n N,
@@ -1825,7 +1836,7 @@ begin
     exact h,
   use ↑(𝔼.inv.g ⟨f, hfP'⟩),
   rw ← hf,
-  unfold has_mul.mul distrib.mul ring.mul comm_ring.mul has_one.one monoid.one ring.one comm_ring.one,
+  simp only [𝔼.mul_eq', 𝔼.one_eq'],
   rw [lemma17, quotient_add_group.eq],
   apply lemma4,
   cases lemma48 ⟨f, hfP'⟩ with C hC,
@@ -1835,6 +1846,7 @@ begin
   rw ← abs_neg at hC,
   simp at hC,
   rw [add_comm],
+  simp,
   exact hC,
 end
 
@@ -1844,7 +1856,7 @@ begin
   rcases ha with ⟨u, hu, ha⟩,
   rcases hb with ⟨v, hv, hb⟩,
   rw [← hu, ← hv],
-  unfold has_mul.mul distrib.mul ring.mul field.mul comm_ring.mul division_ring.mul,
+  simp only [𝔼.mul_eq'],
   rw lemma17,
   use [⟨u.val ∘ v.val, lemma14 u v⟩, rfl],
   rw lemma8 at *,
@@ -1897,7 +1909,8 @@ noncomputable instance field_𝔼 : field 𝔼 :=
   end,
   mul_inv_cancel := begin
     intros a ha,
-    unfold has_inv.inv 𝔼.inv,
+    show a * (𝔼.inv a) = 1,
+    simp only [𝔼.inv],
     split_ifs,
       have := classical.some_spec (lemma49 a h),
       exact this,
@@ -1909,13 +1922,18 @@ noncomputable instance field_𝔼 : field 𝔼 :=
     exact this,
   end,
   inv_zero := begin   
-    unfold has_inv.inv 𝔼.inv,
+    show (𝔼.inv 0) = 0,
+    simp only [𝔼.inv],
     split_ifs,
       exfalso,
       exact lemma10 h,
     refl,
   end,
   ..comm_ring_𝔼 }
+
+@[simp] lemma 𝔼.field.zero_eq : field.zero = (0 : 𝔼) := rfl
+
+@[simp] lemma 𝔼.field.one_eq : field.one = (1 : 𝔼) := rfl
 
 noncomputable instance linear_ordered_field_𝔼 : linear_ordered_field 𝔼 :=
 { le := λ a b, -a + b ∈ P ∪ {0},
@@ -1997,14 +2015,16 @@ noncomputable instance linear_ordered_field_𝔼 : linear_ordered_field 𝔼 :=
   end,
   mul_pos := begin
     intros a b ha hb,
-    unfold has_lt.lt preorder.lt partial_order.lt ordered_add_comm_group.lt at *,
+    change -(0 : 𝔼) + a ∈ P at ha,
+    change -(0 : 𝔼) + b ∈ P at hb,
+    change -(0 : 𝔼) + (a * b) ∈ P,
     simp at *,
     exact lemma50 a b ha hb,
   end,
   le_total := begin
     intros a b,
-    unfold has_le.le preorder.le partial_order.le ordered_add_comm_group.le at *,
-    simp at *,
+    change  -a + b ∈ P ∪ {0} ∨ -b + a ∈ P ∪ {0},
+    simp,
     cases lemma29 (-a + b),
       left,
       right,
@@ -2019,10 +2039,9 @@ noncomputable instance linear_ordered_field_𝔼 : linear_ordered_field 𝔼 :=
     exact h,
   end,
   zero_lt_one := begin
-    unfold has_lt.lt preorder.lt partial_order.lt ordered_add_comm_group.lt,
-    simp,
-    unfold field.zero comm_ring.zero field.one comm_ring.one add_comm_group.zero add_group.zero,
-    simp,
+    simp only [𝔼.field.zero_eq, 𝔼.field.one_eq],
+    change -(0 : 𝔼) + 1 ∈ P,
+    ring,
     exact lemma51,
   end,
   ..field_𝔼 }
@@ -2047,18 +2066,15 @@ begin
   simp,
   rw n_ih,
   ring,
-  unfold has_one.one monoid.one ring.one division_ring.one field.one comm_ring.one,
   have : @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨has_mul.mul ↑n_n, lemma52 n_n⟩ + @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨id, lemma16⟩ = 
     @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t (⟨has_mul.mul ↑n_n, lemma52 n_n⟩ + ⟨id, lemma16⟩),
     refl,
   rw this,
-  unfold has_add.add add_semigroup.add add_monoid.add add_group.add,
   simp,
   have heq : ∀ (z : ℤ), ↑n_n * z + z = (↑n_n + 1) * z,
     intro z,
     ring,
   simp_rw heq,
-  refl,
 end
 
 lemma lemma54 (f g : S) (hfg : (↑f : 𝔼) = ↑g) : (∀ (C : ℤ), 0 < C → (∃ (N : ℤ), ∀ (p : ℤ), N < p → C < f.val p))
@@ -2151,11 +2167,11 @@ instance archimedean_𝔼 : archimedean 𝔼 :=
     rcases lemma56 y⁻¹ with ⟨E, h0E, hE⟩,
     have h0DE : 0 ≤ D * E := zero_le (D * E),
     use D * E,
-    simp,
+    simp only [nsmul_eq_mul, nat.cast_mul, subtype.val_eq_coe],
     have h0y : 0 < y⁻¹,
       exact inv_pos.mpr hy,  
     rw [← mul_le_mul_right h0y, mul_assoc, mul_inv_cancel],
-    { simp,
+    { rw mul_one,
       apply mul_le_mul hD hE,
         linarith, 
       exact nat.cast_nonneg D, }, 
