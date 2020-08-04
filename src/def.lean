@@ -1,5 +1,6 @@
 import tactic
 import group_theory.quotient_group
+import algebra.archimedean
 
 open_locale classical
 
@@ -71,16 +72,15 @@ instance : add_comm_group S := {
   end,
   ..add_group_S }
 
-def B := {f : S | ∃ C, ∀ p, abs (f.1 p) < C}
-
-instance : is_add_subgroup B := {
-  zero_mem := begin
+def B : add_subgroup S :=
+{ carrier := {f : S | ∃ C, ∀ p, abs (f.1 p) < C},
+  zero_mem' := begin
     unfold has_zero.zero add_monoid.zero add_group.zero,
     use 1,
     intro p,
     simp,
   end,
-  add_mem := begin
+  add_mem' := begin
     rintro f g ⟨C1, hf⟩ ⟨C2, hg⟩,
     use C1 + C2,
     intro p,
@@ -91,7 +91,7 @@ instance : is_add_subgroup B := {
     change abs (f.1 p + g.1 p) < C1 + C2,
     linarith [abs_add (f.1 p) (g.1 p)],
   end,
-  neg_mem := begin
+  neg_mem' := begin
     rintro f ⟨C, hf⟩,
     unfold has_neg.neg add_group.neg,
     use C,
@@ -107,39 +107,18 @@ notation `𝔼` := eudoxus_reals_group
 
 instance add_comm_group_𝔼 : add_comm_group 𝔼 := quotient_add_group.add_comm_group B
 
-lemma lemma0 (a b : ℤ) : set.finite {n : ℤ | a < n ∧ n ≤ b} :=
-⟨fintype.of_finset (finset.Ico_ℤ (a + 1) (b + 1)) (by {simp [int.add_one_le_iff, int.lt_add_one_iff]})⟩
-
-lemma lemma1 {f : ℤ → ℤ} (hf1 : almost_homo f) (hf2 : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f p ∧ 0 < n}) :
+lemma lemma1 {f : ℤ → ℤ} (hf1 : almost_homo f) (hf2 : ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f p) :
 ∀ D, 0 < D → ∃ M (hM : 0 < M), ∀ m, 0 < m → (m + 1) * D < f (m * M) :=
 begin
   rcases hf1 with ⟨C, hf1⟩,
   intros D hD,
   set E := C + D with hE,
   have key : ∃ M (hM : 0 < M), 2 * E < f M,
-    by_contradiction h,
-    have h1 : ∀ (M : ℤ) (HM : 0 < M), f M ≤ 2 * E,
-      finish,
-    have h2 : ∀ fx ∈ {n | ∃ p (hp : 0 ≤ p), n = f p ∧ 0 < n}, fx ≤ max (2 * E) (f 0),
-      rintro fx ⟨p, hp, hf, hfx⟩,
-      rw le_iff_lt_or_eq at hp,
-      cases hp,
-        specialize h1 p hp,
-        rw hf,
-        exact le_max_left_of_le h1,
-      rw [hf, ← hp],
-      exact le_max_right (2 * E) (f 0),
-    set T := max (2 * E) (f 0) with hT,
-    have h3 : {n | ∃ p (hp : 0 ≤ p), n = f p ∧ 0 < n} ⊆ {n | 0 < n ∧ n ≤ T},
-      rintro fx hfx,
-      specialize h2 fx hfx,
-      rcases hfx with ⟨_, _, _, hfx⟩,
-      use [hfx, h2],
-    have h4 : set.finite {n | 0 < n ∧ n ≤ T},
-      apply lemma0,
-    have h5 : set.finite {n | ∃ p (hp : 0 ≤ p), n = f p ∧ 0 < n},
-      exact set.finite.subset h4 h3,
-    tauto,
+    have h2E : 0 < 2 * E,
+      linarith [hf1 0 0, abs_nonneg (df f 0 0)],
+    rcases hf2 (2 * E) h2E with ⟨M, hM, H⟩,
+    use [M, hM],
+    exact H,
   rcases key with ⟨M, hM, hfM⟩,
   use [M, hM],
   intros m hm,
@@ -204,9 +183,9 @@ instance : has_coe_t ↥S 𝔼 := quotient_add_group.has_coe_t
 
 instance : has_lift_t ↥S 𝔼 := coe_to_lift
 
-def P := {e : 𝔼 | ∃ (f : S) (H : ↑f = e), set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n}}
+def P := {e : 𝔼 | ∃ (f : S) (H : ↑f = e), ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p}
 
-lemma lemma2 (f : S) (hf : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n}) :
+lemma lemma2 (f : S) (hf : ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p) :
   (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) :=
 begin
   rcases f.2 with ⟨D, hD⟩,
@@ -296,15 +275,7 @@ begin
   { exact hM0, },
 end
 
-lemma lemma3 (S : set ℤ) : int.neg '' (int.neg '' S) = S :=
-begin
-  tidy,
-  convert a_h_left,
-    apply neg_neg,
-  apply neg_neg,
-end
-
-lemma lemma4 (f : S) (hf : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ n < 0}) :
+lemma lemma3 (f : S) (hf : ∀ n (hn : n < 0), ∃ p (hp : 0 < p), f.1 p < n) :
   (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), f.1 p < -C) := 
 begin
   set g := -f with hgf,
@@ -314,35 +285,13 @@ begin
   have key : ∀ (C : ℤ), 0 < C → (∃ (N : ℤ), ∀ (p : ℤ), N < p → C < g.val p),
     apply lemma2 g,
     simp_rw [hgf, hfval],
-    have H1 : set.infinite (int.neg '' {n : ℤ | ∃ (p : ℤ) (hp : 0 ≤ p), n = f.val p ∧ n < 0}),
-    { by_contradiction hfalse,
-      have hfalse' : (int.neg '' {n : ℤ | ∃ (p : ℤ) (hp : 0 ≤ p), n = f.val p ∧ n < 0}).finite,
-        finish,
-      have hfalse'' : (int.neg '' (int.neg '' {n : ℤ | ∃ (p : ℤ) (hp : 0 ≤ p), n = f.val p ∧ n < 0})).finite,
-        exact set.finite.image int.neg hfalse',
-      rw lemma3 at hfalse'',
-      finish, },
-    have H2 : int.neg '' {n : ℤ | ∃ (p : ℤ) (hp : 0 ≤ p), n = f.val p ∧ n < 0} = 
-      {n : ℤ | ∃ (p : ℤ) (hp : 0 ≤ p), n = -f.val p ∧ 0 < n},
-      ext,
-      split,
-      { intro hx,
-        rcases hx with ⟨negx, ⟨p, h0p, hp, hnegx0⟩, hnegx⟩,
-        use [p, h0p],
-        rw ← hnegx,
-        split,
-          exact congr_arg int.neg hp,
-        exact lt_neg.mp hnegx0, },
-      { intro hx,
-        rcases hx with ⟨p, h0p, hp, h0x⟩,
-        use [-x, p, h0p],
-          split, 
-            rw hp,
-            ring,
-          exact neg_lt_zero.mpr h0x,
-        exact neg_neg x, },
-    rw H2 at H1,
-    exact H1,
+    intros n hn,
+    have : -n < 0,
+      linarith,
+    specialize hf (-n) this,
+    rcases hf with ⟨p, hp, hf⟩,
+    use [p, hp],
+    linarith,
   simp_rw [hgf, hfval] at key,
   rintro C hC,
   specialize key C hC,
@@ -353,7 +302,7 @@ begin
   linarith,
 end
 
-lemma lemma5 (f : S) (hf : ∃ C, ∀ p (hp : 0 ≤ p), abs (f.1 p) < C) : ∃ B, ∀ p, abs (f.1 p) < B :=
+lemma lemma4 (f : S) (hf : ∃ C, ∀ p (hp : 0 ≤ p), abs (f.1 p) < C) : ∃ B, ∀ p, abs (f.1 p) < B :=
 begin
   cases f.2 with D hD,
   cases hf with C hC,
@@ -395,57 +344,63 @@ begin
     linarith [abs_nonneg (f.val 1)], },
 end
 
-lemma lemma6 (f : S) : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n} ∨ 
-  set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ n < 0} ∨ (∃ C, ∀ p (hp : 0 ≤ p), abs (f.1 p) < C) :=
+lemma lemma5 (f : S) : (∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p) ∨ 
+  (∀ n (hn : n < 0), ∃ p (hp : 0 < p), f.1 p < n) ∨ (∃ C, ∀ p (hp : 0 ≤ p), abs (f.1 p) < C) :=
 begin
-  by_cases h1 : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n},
+  by_cases h1 : ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p,
     left,
     exact h1,
-  by_cases h2 : set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ n < 0},
+  by_cases h2 : ∀ n (hn : n < 0), ∃ p (hp : 0 < p), f.1 p < n,
     right,
     left,
     exact h2,
-  have h1' : set.finite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n},
+  have h1' : ∃ n (hn : 0 < n), ∀ p (hp : 0 < p), f.1 p ≤ n,
     finish,
-  have h2' : set.finite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ n < 0},
+  have h2' : ∃ n (hn : n < 0), ∀ p (hp : 0 < p), n ≤ f.1 p,
     finish,  
-  have h1bdd : bdd_above {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n} := set.finite.bdd_above h1',
-  have h2bdd : bdd_below {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ n < 0} := set.finite.bdd_below h2',
-  cases h1bdd with C1 hC1,
-  unfold upper_bounds at hC1,
-  simp at hC1,
-  cases h2bdd with C2 hC2,
-  unfold lower_bounds at hC2,
-  simp at hC2,
+  rcases h1' with ⟨C1, hC1, h1'⟩,
+  rcases h2' with ⟨C2, hC2, h2'⟩,
   right,
   right,
-  use abs (C1) + abs (C2) + 1,
+  use abs (C1) + abs (C2) + abs (f.val 0) + 1,
   intros p hp,
   have hfval0 : 0 < f.1 p ∨ f.1 p ≤ 0,
     exact lt_or_ge 0 (f.val p),
   cases hfval0,
-  { specialize @hC1 (f.1 p) p hp rfl hfval0,
-    have habs : abs (f.val p) ≤ abs C1,
-      apply abs_le_abs hC1,
-      linarith,
+  { have habs : abs (f.val p) ≤ abs C1 + abs (f.val 0),
+      have := eq_or_lt_of_le hp,
+      cases this,
+        rw ← this,
+        linarith [abs_nonneg C1],
+      specialize h1' p this,
+      have : abs (f.val p) ≤ abs C1,
+        apply abs_le_abs h1',
+        linarith,
+      linarith [abs_nonneg (f.val 0)],
     linarith [abs_nonneg C2], },
   { have hfval0' : f.1 p < 0 ∨ f.1 p = 0,
       exact lt_or_eq_of_le hfval0,
     cases hfval0',
-    { specialize @hC2 (f.1 p) p hp rfl hfval0', 
-      have habs : abs (f.val p) ≤ abs C2,
-        rw abs_of_neg hfval0',
-        have hC2 : C2 < 0,
+    { have habs : abs (f.val p) ≤ abs C2 + abs (f.val 0),
+        have := eq_or_lt_of_le hp,
+        cases this,
+          rw ← this,
+          linarith [abs_nonneg C2],
+        specialize h2' p this,
+        have habs : abs (f.val p) ≤ abs C2,
+          rw abs_of_neg hfval0',
+          have hC2 : C2 < 0,
+            linarith,
+          rw abs_of_neg hC2,
           linarith,
-        rw abs_of_neg hC2,
-        linarith,
+        linarith [abs_nonneg (f.val 0)],
       linarith [abs_nonneg C1], }, 
     { rw hfval0',
-      simp,
-      linarith [abs_nonneg C1, abs_nonneg C2], }, },
+      simp only [abs_zero],
+      linarith [abs_nonneg C1, abs_nonneg C2, abs_nonneg (f.1 0)], }, },
 end
 
-lemma lemma7 (f : S) : (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) ∧ 
+lemma lemma6 (f : S) : (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) ∧ 
   (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), f.1 p < -C) → false :=
 begin
   rintro ⟨h1, h2⟩,
@@ -464,12 +419,12 @@ begin
   linarith,
 end
 
-lemma lemma8 (f : S) : (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) ∧ 
+lemma lemma7 (f : S) : (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) ∧ 
   (∃ B, ∀ p, abs (f.1 p) < B) → false :=
 begin
   rintro ⟨h1, h2⟩,
   cases h2 with B h2,
-    have h01 : (0 : int) < 1,
+  have h01 : (0 : int) < 1,
     norm_num,
   have h2' : ∀ (p : ℤ), abs (f.val p) < B := h2,
   specialize h2' 0,
@@ -485,32 +440,32 @@ begin
   linarith,
 end
 
-lemma lemma9 (f : S) :  set.infinite {n | ∃ p (hp : 0 ≤ p), n = f.1 p ∧ 0 < n} ↔
+lemma lemma8 (f : S) : (∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p) ↔
   (∀ C (HC : 0 < C), ∃ N : ℤ, ∀ p (hNp : N < p), C < f.1 p) :=
 begin
   split,
   { intro hf,
     exact lemma2 f hf, },
-  { cases lemma6 f,
+  { cases lemma5 f,
     { intro,
       exact h, },
     { cases h,
       { intro h1,
         exfalso,
-        exact lemma7 f ⟨h1, lemma4 f h⟩, },
+        exact lemma6 f ⟨h1, lemma3 f h⟩, },
       { intro h1,
         exfalso,
-        exact lemma8 f ⟨h1, lemma5 f h⟩, }, }, },
+        exact lemma7 f ⟨h1, lemma4 f h⟩, }, }, },
 end
 
-lemma lemma10 : ∀ a b ∈ P, a + b ∈ P :=
+lemma lemma9 : ∀ a b ∈ P, a + b ∈ P :=
 begin
   rintro a b ⟨f1, hf1a, h1⟩ ⟨f2, hf2b, h2⟩,
   use f1 + f2,
   split,
     rw [← hf1a, ← hf2b],
     refl,
-  rw lemma9 at *,
+  rw lemma8 at *,
   intros C hC,
   specialize h1 C hC,
   specialize h2 C hC,
@@ -530,28 +485,22 @@ begin
   linarith,
 end
 
-lemma lemma11 : (0 : 𝔼) ∈ P → false :=
+lemma lemma10 : (0 : 𝔼) ∈ P → false :=
 begin
   intro hfalse,
   unfold P at hfalse,
   rcases hfalse with ⟨f, H, hfalse⟩,
-  rw lemma9 at hfalse,
+  rw lemma8 at hfalse,
   unfold has_zero.zero add_monoid.zero add_group.zero add_comm_group.zero at H,
   rw quotient_add_group.eq at H,
   have hf : -f + 0 ∈ B,
     unfold has_zero.zero add_monoid.zero add_group.zero,
     exact H,
-  unfold B at hf,
   simp at hf,
-  change ∃ (C : ℤ), ∀ (p : ℤ), abs (((-f).val) p) < C at hf,
-  have hfval : ∀ p, (-f).val p = -(f.val p),
-    intro p,
-    refl,
-  simp_rw [hfval, abs_neg] at hf,
-  exact lemma8 f ⟨hfalse, hf⟩,
+  exact lemma7 f ⟨hfalse, hf⟩,
 end
 
-lemma lemma12 {a : 𝔼} : a ∈ P → -a ∈ P → false :=
+lemma lemma11 {a : 𝔼} : a ∈ P → -a ∈ P → false :=
 begin
   unfold P,
   rintro ⟨f1, hf1, ha1⟩ ⟨f2, hf2, ha2⟩,
@@ -569,7 +518,7 @@ begin
   simp at hf1f2',
   unfold B at hf1f2',
   cases hf1f2' with C hf1f2',
-  rw lemma9 at *,
+  rw lemma8 at *,
   have h0C : 0 < C,
     linarith [hf1f2' 0, abs_nonneg ((f2 + f1).val 0)],
   cases ha1 C h0C with N1 ha1,
@@ -586,102 +535,22 @@ begin
   linarith,
 end
 
-instance ordered_add_comm_group_𝔼 : ordered_add_comm_group 𝔼 :=
-{ le := λ a b, -a + b ∈ P ∪ {0},
-  lt := λ a b, -a + b ∈ P,
-  le_refl := begin
-    intro a,
-    simp,
-  end,
-  le_trans := begin
-    intros a b c hab hbc,
-    simp at *,
-    cases hab,
-    { cases hbc,
-      { left,
-        rw [neg_add_eq_zero.mp hab, neg_add_eq_zero.mp hbc],
-        simp, },
-      { rw neg_add_eq_zero.mp hab,
-        cc, }, },
-    { cases hbc,
-      { rw ← (neg_add_eq_zero.mp hbc),
-        cc, },
-      { right,
-        have h : (-a + b) + (-b + c) ∈ P := lemma10 (-a + b) (-b + c) hab hbc,
-        have heq : -a + c = (-a + b) + (-b + c),
-          abel,
-        rw heq,
-        exact h, }, },
-  end,
-  lt_iff_le_not_le := begin
-    intros a b,
-    split,
-    { intro hab,
-      simp at hab,
-      simp,
-      split,
-        cc,
-      intro hfalse,
-      cases hfalse,
-      { rw neg_add_eq_zero.mp hfalse at hab,
-        simp at hab,
-        exact lemma11 hab, },
-      { have heq : -b + a = -(-a + b),
-          abel,
-        rw heq at hfalse,
-        exact lemma12 hab hfalse, }, },
-    { rintro ⟨hab, hba⟩,
-      cases hab,
-      { exact hab, },
-      { simp at hab,
-        simp at hba,
-        have : ¬(-b + a = 0),
-          cc,
-        exfalso,
-        apply this,
-        rw neg_add_eq_zero at *,
-        exact eq.symm hab, }, },
-  end,
-  le_antisymm := begin
-    intros a b hab hba,
-    cases hab,
-    { cases hba,
-      { exfalso,
-        have :  -b + a = -(-a + b),
-          abel,
-        rw this at hba,
-        exact lemma12 hab hba, },
-      { simp at hba,
-        exact eq.symm (neg_add_eq_zero.mp hba), }, },
-    { simp at hab,
-      exact neg_add_eq_zero.mp hab, },
-  end,
-  add_le_add_left := begin
-    intros a b hab c,
-    show -(c + a) + (c + b) ∈ P ∪ {0},
-    have : -(c + a) + (c + b) = -a + b,
-      abel,
-    rw this,
-    exact hab,
-  end,
-  ..add_comm_group_𝔼 }
+lemma lemma12 : ∀ a : 𝔼, ∃ f : S, ↑f = a := λ a, quot.exists_rep a
 
-lemma lemma13 : ∀ a : 𝔼, ∃ f : S, ↑f = a := λ a, quot.exists_rep a
-
-lemma lemma14 : ∀ {f : ℤ → ℤ} (C : ℤ), set.finite (f '' (set.Ioo (-C) C)) :=
+lemma lemma13 : ∀ {f : ℤ → ℤ} (C : ℤ), set.finite (f '' (set.Ioo (-C) C)) :=
 begin
   intros f C,
   apply set.finite.image,
   exact ⟨fintype.of_finset (finset.Ico_ℤ (-C + 1) (C)) (by {simp [int.add_one_le_iff]})⟩,
 end
 
-lemma lemma15 : ∀ f g : S, f.1 ∘ g.1 ∈ S :=
+lemma lemma14 : ∀ f g : S, f.1 ∘ g.1 ∈ S :=
 begin
   intros f g,
   rcases f with ⟨f, C1, hf⟩,
   rcases g with ⟨g, C2, hg⟩,
   simp,
-  have hfin : set.finite (f '' (set.Ioo (-C2) (C2))) := lemma14 C2,
+  have hfin : set.finite (f '' (set.Ioo (-C2) (C2))) := lemma13 C2,
   cases set.finite.bdd_above hfin with C3 hC3,
   unfold upper_bounds at hC3,
   simp at hC3,
@@ -715,16 +584,16 @@ begin
   linarith,
 end
 
-lemma lemma16 : ∀ {f1 g1 f2 g2 : S}, (@coe ↥S 𝔼) eudoxus_reals_group.has_lift_t f1 = ↑f2 → 
-  (@coe ↥S 𝔼) eudoxus_reals_group.has_lift_t g1 = ↑g2 → -(⟨f1.1 ∘ g1.1, lemma15 f1 g1⟩ : S) 
-  + (⟨f2.1 ∘ g2.1, lemma15 f2 g2⟩ : S) ∈ B :=
+lemma lemma15 : ∀ {f1 g1 f2 g2 : S}, (@coe ↥S 𝔼) eudoxus_reals_group.has_lift_t f1 = ↑f2 → 
+  (@coe ↥S 𝔼) eudoxus_reals_group.has_lift_t g1 = ↑g2 → -(⟨f1.1 ∘ g1.1, lemma14 f1 g1⟩ : S) 
+  + (⟨f2.1 ∘ g2.1, lemma14 f2 g2⟩ : S) ∈ B :=
 begin
   rintros ⟨f1, hf1⟩ ⟨g1, hfg⟩ ⟨f2, Bf2, hf2⟩ ⟨g2, hg2⟩ hf1f2 hg1g2,
   rw quotient_add_group.eq at *,
   unfold B at *,
   cases hf1f2 with Cf hf1f2,
   cases hg1g2 with Cg hg1g2,
-  have hfin : set.finite (f2 '' (set.Ioo (-Cg) (Cg))) := lemma14 Cg,
+  have hfin : set.finite (f2 '' (set.Ioo (-Cg) (Cg))) := lemma13 Cg,
   cases set.finite.bdd_above hfin with C3 hC3,
   unfold upper_bounds at hC3,
   simp at hC3,
@@ -770,7 +639,7 @@ begin
   linarith,
 end
 
-lemma lemma17 : (id : ℤ → ℤ) ∈ S := 
+lemma lemma16 : (id : ℤ → ℤ) ∈ S := 
 begin
   use 1,
   intros p q,
@@ -779,23 +648,23 @@ end
 
 noncomputable def 𝔼.mul : 𝔼 → 𝔼 → 𝔼 := λ a b, 
 begin
-  choose f hf using lemma13 a,
-  choose g hg using lemma13 b,
-  let h : ↥S := ⟨f.1 ∘ g.1, lemma15 f g⟩,
+  choose f hf using lemma12 a,
+  choose g hg using lemma12 b,
+  let h : ↥S := ⟨f.1 ∘ g.1, lemma14 f g⟩,
   exact ↑h,
 end
 
-lemma lemma18 : ∀ x y : S, 𝔼.mul x y = ↑(⟨x.1 ∘ y.1, lemma15 x y⟩ : S) :=
+lemma lemma17 : ∀ x y : S, 𝔼.mul ↑x ↑y = ↑(⟨x.1 ∘ y.1, lemma14 x y⟩ : S) :=
 begin
   intros x y,
   unfold 𝔼.mul,
   rw quotient_add_group.eq,
-  have hxeq := classical.some_spec (lemma13 ↑x),
-  have hyeq := classical.some_spec (lemma13 ↑y),
-  apply lemma16 hxeq hyeq,
+  have hxeq := classical.some_spec (lemma12 ↑x),
+  have hyeq := classical.some_spec (lemma12 ↑y),
+  apply lemma15 hxeq hyeq,
 end
 
-lemma lemma19 : ∀ x y : S, x = y → -x + y ∈ B :=
+lemma lemma18 : ∀ x y : S, x = y → -x + y ∈ B :=
 begin
   intros x y hxy,
   rw hxy,
@@ -805,7 +674,7 @@ begin
   simp,
 end
 
-lemma lemma20 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
+lemma lemma19 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
 begin
   cases f.2 with C hC,
   use C,
@@ -845,7 +714,7 @@ begin
       linarith [int.neg_succ_lt_zero p], },
 end
 
-lemma lemma21 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 ((-p) * q) - (-p) * (f.1 q)) < (abs (-p) + 1) * C :=
+lemma lemma20 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 ((-p) * q) - (-p) * (f.1 q)) < (abs (-p) + 1) * C :=
 begin
   cases f.2 with C hC,
   use C,
@@ -891,10 +760,10 @@ begin
       linarith [int.neg_succ_lt_zero p], },
 end
 
-lemma lemma22 (f : S) : ∃ C, ∀ p q,  abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
+lemma lemma21 (f : S) : ∃ C, ∀ p q,  abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
 begin
-  cases lemma20 f with C1 hC1,
-  cases lemma21 f with C2 hC2,
+  cases lemma19 f with C1 hC1,
+  cases lemma20 f with C2 hC2,
   use max C1 C2,
   intro p,
   have hp0 := le_or_lt 0 p,
@@ -930,9 +799,9 @@ begin
     linarith, },
 end
 
-lemma lemma23 (f : S) : ∃ C, ∀ p q, abs (p * (f.1 q) - q * (f.1 p)) < (abs p + abs q + 2) * C :=
+lemma lemma22 (f : S) : ∃ C, ∀ p q, abs (p * (f.1 q) - q * (f.1 p)) < (abs p + abs q + 2) * C :=
 begin
-  cases lemma22 f with C hC,
+  cases lemma21 f with C hC,
   use C,
   intros p q,
   have hC' := hC,
@@ -948,10 +817,14 @@ begin
   linarith [abs_add (-(f.val (p * q) - p * f.val q)) (f.val (q * p) - q * f.val p)],
 end
 
-lemma lemma24 (f : S) : ∃ A B, ∀ p, abs (f.1 p) < A * abs p + B :=
+lemma lemma23 (f : S) : ∃ A B (hA : 0 < A), ∀ p, abs (f.1 p) < A * abs p + B :=
 begin
-  cases lemma23 f with C hC,
-  use [C + abs (f.1 1), 3 * C],
+  cases lemma22 f with C hC,
+  have hC0 : 0 < C + abs (f.1 1),
+    specialize hC 0 0,
+    simp at hC,
+    linarith [abs_nonneg (f.1 1)],
+  use [C + abs (f.1 1), 3 * C, hC0],
   intro p,
   specialize hC p 1,
   have heq1 : f.1 p = -(p * f.1 1 - f.1 p) + (p * f.1 1),
@@ -967,16 +840,16 @@ begin
   linarith [abs_add (-(p * f.val 1 - f.val p)) (p * f.1 1)],
 end
 
-lemma lemma25 (f g : S) : ∃ D E, ∀ p, abs p * abs (f.1 (g.1 p) - g.1 (f.1 p)) < D * abs p + E :=
+lemma lemma24 (f g : S) : ∃ D E, ∀ p, abs p * abs (f.1 (g.1 p) - g.1 (f.1 p)) < D * abs p + E :=
 begin
   have h1 : ∃ C, ∀ p, abs (p * f.1 (g.1 p) - g.1 p * f.1 p) < (abs p + abs (g.1 p) + 2) * C,
-    cases lemma23 f with C hC,
+    cases lemma22 f with C hC,
     use C,
     intro p,
     specialize hC p (g.1 p),
     exact hC,
   have h2 : ∃ C, ∀ p, abs (g.1 p * f.1 p - p * g.1 (f.1 p)) < (abs p + abs (f.1 p) + 2) * C,
-    cases lemma23 g with C hC,
+    cases lemma22 g with C hC,
     use C,
     intro p,
     specialize hC p (f.1 p),
@@ -1014,8 +887,8 @@ begin
     rw [heq1, heq2],
     linarith [abs_add (p * f.1 (g.1 p) - g.1 p * f.1 p) (g.1 p * f.1 p - p * g.1 (f.1 p))],
   cases h3 with C h3,
-  rcases lemma24 f with ⟨Af, Bf, hABf⟩,
-  rcases lemma24 g with ⟨Ag, Bg, hABg⟩,  
+  rcases lemma23 f with ⟨Af, Bf, hAf, hABf⟩,
+  rcases lemma23 g with ⟨Ag, Bg, hAg, hABg⟩,  
   have h4 : ∀ (p : ℤ), abs (p * f.val (g.val p) - p * g.val (f.val p)) < 
     (2 * abs p + (Ag * abs p + Bg) + (Af * abs p + Bf) + 4) * C,
     intro p,
@@ -1052,15 +925,9 @@ begin
   linarith,
 end
 
-lemma lemma26 (f g : S) : -(⟨f.1 ∘ g.1, lemma15 f g⟩ : S) + (⟨g.1 ∘ f.1, lemma15 g f⟩ : S) ∈ B :=
+lemma lemma25 (f g : S) : -(⟨f.1 ∘ g.1, lemma14 f g⟩ : S) + (⟨g.1 ∘ f.1, lemma14 g f⟩ : S) ∈ B :=
 begin
-  rcases lemma25 f g with ⟨D, E, hDE⟩,
-  unfold B,
-  have : ∀ (k : S), k ∈ {f : ↥S | ∃ (C : ℤ), ∀ (p : ℤ), abs (f.val p) < C} ↔ ∃ (C : ℤ), ∀ (p : ℤ), abs (k.val p) < C,
-    intro k,
-    refl,
-  rw this,
-  clear this,
+  rcases lemma24 f g with ⟨D, E, hDE⟩,
   simp,
   unfold has_add.add add_semigroup.add add_monoid.add add_group.add has_neg.neg add_group.neg,
   simp,
@@ -1110,28 +977,28 @@ end
 lemma 𝔼.mul_comm : ∀ (a b : 𝔼), 𝔼.mul a b = 𝔼.mul b a :=
 begin
   intros a b,
-  cases lemma13 a with u hu,
-  cases lemma13 b with v hv,
-  rw [← hu, ← hv, lemma18 u v, lemma18 v u, quotient_add_group.eq],
-  apply lemma26,
+  cases lemma12 a with u hu,
+  cases lemma12 b with v hv,
+  rw [← hu, ← hv, lemma17 u v, lemma17 v u, quotient_add_group.eq],
+  apply lemma25,
 end
 
 lemma 𝔼.mul_right_distrib : ∀ (a b c : 𝔼), 𝔼.mul (a + b) c = 𝔼.mul a c + 𝔼.mul b c :=
 begin
   intros a b c,
-  cases lemma13 a with u hu,
-  cases lemma13 b with v hv,
-  cases lemma13 c with w hw,
-  have H1 := lemma18 (u + v) w,
-  have H2 := lemma18 u w,
-  have H3 := lemma18 v w,
+  cases lemma12 a with u hu,
+  cases lemma12 b with v hv,
+  cases lemma12 c with w hw,
+  have H1 := lemma17 (u + v) w,
+  have H2 := lemma17 u w,
+  have H3 := lemma17 v w,
   have heq : ∀ v w, (@coe ↥S 𝔼) eudoxus_reals_group.has_lift_t (v + w) = 
     @has_add.add 𝔼 (@add_semigroup.to_has_add 𝔼 (add_monoid.to_add_semigroup 𝔼)) ↑v ↑w := λ v w, rfl,
   rw heq at H1,
   rw [← hu, ← hv, ← hw],
     rw [H1, H2, H3, ← heq, quotient_add_group.eq],
     simp,
-    apply lemma19,
+    apply lemma18,
     unfold has_add.add add_semigroup.add add_monoid.add add_group.add,
     simp,
 end
@@ -1140,17 +1007,17 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
   mul := 𝔼.mul,
   mul_assoc := begin
     intros a b c,
-    cases lemma13 a with u hu,
-    cases lemma13 b with v hv,
-    cases lemma13 c with w hw,
-    set ab : ↥S := ⟨u.1 ∘ v.1, lemma15 u v⟩ with hab, 
-    set abc : ↥S := ⟨ab.1 ∘ w.1, lemma15 ab w⟩ with habc,
-    set bc : ↥S := ⟨v.1 ∘ w.1, lemma15 v w⟩ with hbc,
-    set abc' : ↥S := ⟨u.1 ∘ bc.1, lemma15 u bc⟩ with habc',  
-    have H1 := lemma18 u v,
-    have H2 := lemma18 ab w,
-    have H3 := lemma18 v w,
-    have H4 := lemma18 u bc,
+    cases lemma12 a with u hu,
+    cases lemma12 b with v hv,
+    cases lemma12 c with w hw,
+    set ab : ↥S := ⟨u.1 ∘ v.1, lemma14 u v⟩ with hab, 
+    set abc : ↥S := ⟨ab.1 ∘ w.1, lemma14 ab w⟩ with habc,
+    set bc : ↥S := ⟨v.1 ∘ w.1, lemma14 v w⟩ with hbc,
+    set abc' : ↥S := ⟨u.1 ∘ bc.1, lemma14 u bc⟩ with habc',  
+    have H1 := lemma17 u v,
+    have H2 := lemma17 ab w,
+    have H3 := lemma17 v w,
+    have H4 := lemma17 u bc,
     rw [hu, hv] at H1,
     rw [hab, ← habc, ← H1, hw] at H2,
     rw [hv, hw] at H3,
@@ -1158,18 +1025,18 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
     unfold has_mul.mul,
     rw [H2, H4],
   end,
-  one := ↑(⟨(id : ℤ → ℤ), lemma17⟩ : S),
+  one := ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S),
   one_mul := begin
     intro a,
-    cases lemma13 a with u hu,
+    cases lemma12 a with u hu,
     rw ← hu,
     unfold has_one.one has_mul.mul semigroup.mul 𝔼.mul,
     simp,
     rw quotient_add_group.eq,
-    have h1 := classical.some_spec (lemma13 ↑u),
-    have h2 := classical.some_spec (lemma13 ↑(⟨(id : ℤ → ℤ), lemma17⟩ : S)),
-    have h3 := lemma16 h2 h1,
-    have h4 : u = (⟨(⟨(id : ℤ → ℤ), lemma17⟩ : S).val ∘ u.val, lemma15 ⟨(id : ℤ → ℤ), lemma17⟩ u⟩ : S),
+    have h1 := classical.some_spec (lemma12 ↑u),
+    have h2 := classical.some_spec (lemma12 ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S)),
+    have h3 := lemma15 h2 h1,
+    have h4 : u = (⟨(⟨(id : ℤ → ℤ), lemma16⟩ : S).val ∘ u.val, lemma14 ⟨(id : ℤ → ℤ), lemma16⟩ u⟩ : S),
       simp,
     rw h4,
     convert h3,
@@ -1177,15 +1044,15 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
   end,
   mul_one := begin
     intro a,
-    cases lemma13 a with u hu,
+    cases lemma12 a with u hu,
     rw ← hu,
     unfold has_one.one has_mul.mul semigroup.mul 𝔼.mul,
     simp,
     rw quotient_add_group.eq,
-    have h1 := classical.some_spec (lemma13 ↑u),
-    have h2 := classical.some_spec (lemma13 ↑(⟨(id : ℤ → ℤ), lemma17⟩ : S)),
-    have h3 := lemma16 h1 h2,
-    have h4 : u = (⟨(⟨(id : ℤ → ℤ), lemma17⟩ : S).val ∘ u.val, lemma15 ⟨(id : ℤ → ℤ), lemma17⟩ u⟩ : S),
+    have h1 := classical.some_spec (lemma12 ↑u),
+    have h2 := classical.some_spec (lemma12 ↑(⟨(id : ℤ → ℤ), lemma16⟩ : S)),
+    have h3 := lemma15 h1 h2,
+    have h4 : u = (⟨(⟨(id : ℤ → ℤ), lemma16⟩ : S).val ∘ u.val, lemma14 ⟨(id : ℤ → ℤ), lemma16⟩ u⟩ : S),
       simp,
     rw h4,
     convert h3,
@@ -1213,3 +1080,1084 @@ noncomputable instance comm_ring_𝔼 : comm_ring 𝔼 := {
   end,
   ..add_comm_group_𝔼 }
 
+lemma lemma26 {f : ℤ → ℤ} : (∀ p < 0, f p = -(f (-p))) → (∃ C, ∀ m n (hm : 0 ≤ m) (hn : 0 ≤ n),
+  abs (df f m n) < C) → f ∈ S :=
+begin
+  rintro h1 ⟨C, h2⟩,
+  use C,
+  intros p q,
+  have hp := le_or_lt 0 p,
+  have hq := le_or_lt 0 q,
+  cases hp,
+  { cases hq,
+      exact h2 p q hp hq,
+    have hpq := le_or_lt 0 (p + q),
+    cases hpq,
+      have h0q : 0 ≤ -q,
+        linarith,
+      simp,
+      specialize h2 (p + q) (-q) hpq h0q,
+      simp at h2,
+      have : -(f (p + q) - f p - -f (-q)) = f p - f (p + q) - f (-q),
+        ring,
+      rw [h1 q hq, ← abs_neg, this],
+      exact h2, 
+    have hpq' : 0 ≤ -(p + q),
+      linarith,
+    specialize h2 (-(p + q)) p hpq' hp,
+    simp at h2,
+    simp,
+    have : -f (-(p + q)) - f p - -f (-q) = f (-q) - f (-q + -p) - f p,
+      have : -(p + q) = -q + -p,
+        ring,
+      rw this,
+      ring,
+    rw [h1 q hq, h1 (p + q) hpq, this],
+    exact h2, },
+  cases hq,
+  { have hpq := le_or_lt 0 (p + q),
+    cases hpq,
+      have h0p : 0 ≤ -p,
+        linarith,
+      simp,
+      specialize h2 (p + q) (-p) hpq h0p,
+      simp at h2,
+      have : -(f (p + q) - -f (-p) - f q) = f (p + q + -p) - f (p + q) - f (-p),
+        have : p + q + -p = q,
+          ring,
+        rw this,
+        ring,
+      rw [h1 p hp, ← abs_neg, this],
+      exact h2, 
+    have hpq' : 0 ≤ -(p + q),
+      linarith,
+    specialize h2 (-(p + q)) q hpq' hq,
+    simp at h2,
+    simp,
+    have : -f (-(p + q)) - -f (-p) - f q = f (-q + -p + q) - f (-q + -p) - f q,
+      have eq1 : -(p + q) = -q + -p,
+        ring,
+      have eq2 : -q + -p + q = -p,
+        ring,
+      rw [eq1, eq2],
+      ring,
+    rw [h1 p hp, h1 (p + q) hpq, this],
+    exact h2, },
+  have H1 : df f p q = -(df f (-p) (-q)),
+    have hpq : p + q < 0,
+      linarith,
+    have heq : -(p + q) = -p - q,
+      ring,
+    simp,
+    rw [h1 p hp, h1 q hq, h1 (p + q) hpq],
+    ring,
+    rw heq,
+    ring,
+  have h0p : 0 ≤ -p,
+    linarith,
+  have h0q : 0 ≤ -q,
+    linarith,
+  specialize h2 (-p) (-q) h0p h0q,
+  rw [H1, abs_neg],
+  exact h2,
+end
+
+lemma lemma27 (S : set ℤ) : S.nonempty → (∀ n : ℤ, n ∈ S → 0 ≤ n) → ∃ n ∈ S, ∀ m ∈ S, n ≤ m := 
+begin
+  intros H1 H2,
+  set S' := {a : ℕ | ∃ (s : ℤ) (Hs : s ∈ S), s = ↑a},
+  have hS' : S'.nonempty,
+    show ∃ (t : ℕ) (s : ℤ) (Hs : s ∈ S), s = ↑t,
+    cases H1 with x hx,
+    specialize H2 x hx,
+    have := int.eq_coe_of_zero_le H2,
+    cases this,
+    use [this_w, x, hx, this_h],
+  have hS'S : ∀ {a : ℕ}, a ∈ S' → ↑a ∈ S,
+    rintro a ⟨a', ha', haa'⟩,
+    rw ← haa',
+    exact ha',
+  use ↑(nat.find_x hS').1,
+  cases (nat.find_x hS').2 with h1 h2,
+  use hS'S h1,
+  intros m hm,
+  specialize H2 m hm,
+  cases int.eq_coe_of_zero_le H2 with m' hm',
+  specialize h2 m',
+  have h2' : m' ∈ S' → (nat.find_x hS').val ≤ m',
+    contrapose,
+    simp only [exists_prop, not_le, exists_eq_right],
+    exact h2,
+  have : m' ∈ S' := ⟨m, hm, hm'⟩,
+  specialize h2' this,
+  rw hm',
+  exact int.coe_nat_le.mpr h2',
+end
+
+def P' := {f : S | ∀ n (hn : 0 < n), ∃ p (hp : 0 < p), n < f.1 p}
+
+lemma lemma28 (f : P') : ∀ p (hp : 0 ≤ p), ∃ n (hn : n ∈ {m | p ≤ f.1.1 m ∧ 0 ≤ m}), ∀ x ∈ {m | p ≤ f.1.1 m ∧ 0 ≤ m}, n ≤ x :=
+begin
+  intros p hp,
+  cases f with f hf,
+  unfold P' at hf,
+  simp only [set.mem_set_of_eq] at hf,
+  rw lemma8 f at hf,
+  have hp1 : 0 < p + 1,
+    linarith,
+  specialize hf (p + 1) hp1,
+  have hnonempty : {m : ℤ | p ≤ f.val m ∧ 0 ≤ m}.nonempty,
+    cases hf with N hf,
+    have hN : N < max 0 (N + 1),
+      rw lt_max_iff,
+        right,
+      linarith,
+    specialize hf (max 0 (N + 1)) hN,   
+    use (max 0 (N + 1)),
+    simp only [set.mem_set_of_eq],
+    split, 
+      linarith,
+    rw le_max_iff,
+    left,
+    linarith,
+  have hall : ∀ n : ℤ, n ∈ {m : ℤ | p ≤ f.val m ∧ 0 ≤ m} → 0 ≤ n,
+    intros n hn,
+    exact hn.2,
+  exact lemma27 {m : ℤ | p ≤ f.val m ∧ 0 ≤ m} hnonempty hall,
+end
+
+lemma lemma29 (a : 𝔼) : a ∈ P ∨ a = 0 ∨ -a ∈ P :=
+begin
+  cases lemma12 a with u hu,
+  cases lemma5 u,
+    left,
+    unfold P,
+    use [u.1, u.2],
+    simp only [subtype.coe_eta, subtype.val_eq_coe],
+    use [hu, h],
+  cases h,
+    right,
+    right,
+    unfold P,
+    have : ↑-u = -a,
+      rw ← hu,
+      refl,
+    use [-u, this],
+    intros n hn,
+    have hn0 : -n < 0,
+      linarith,
+    specialize h (-n) hn0,
+    rcases h with ⟨p, hp, h⟩,
+    use [p, hp],
+    have huval : (-u).val p = -(u.val p) := rfl,
+    linarith,
+  right,
+  left,
+  have : (0 : 𝔼) = ↑(0 : S) := rfl,
+  symmetry,
+  rw [← hu, this, quotient_add_group.eq],
+  simp,
+  exact lemma4 u h,
+end
+
+lemma lemma30 {a : 𝔼} : a ∉ P → ¬(a = 0) → -a ∈ P :=
+begin
+  intros h1 h2,
+  cases lemma29 a,
+    exfalso,
+    exact h1 h,
+  cases h,
+    exfalso,
+    exact h2 h,
+  exact h,
+end
+
+noncomputable def 𝔼.inv.g1 : P' → (ℤ → ℤ) := λ f, (λ p,
+if hp : 0 ≤ p then begin
+  choose n hn using lemma28 f p hp,
+  exact n,
+end
+else begin
+  have hp' : 0 ≤ -p,
+    linarith,
+  choose n hn using lemma28 f (-p) hp',
+  exact -n,
+end)
+
+lemma lemma31 (f : P') :  ∀ n (hn : 0 ≤ n), 0 ≤ 𝔼.inv.g1 f n :=
+begin
+  intros n hn,
+  unfold 𝔼.inv.g1,
+  split_ifs,
+  have := classical.some_spec (lemma28 f n hn),
+  cases this with hsome1 hsome2,
+  rw set.mem_set_of_eq at hsome1,
+  exact hsome1.2,
+end
+
+lemma lemma32 (f : P') :  ∃ n (hn : 0 < n), 0 < 𝔼.inv.g1 f n :=
+begin
+  by_contradiction hfalse,
+  have hfalse' : ∀ n (hn : 0 < n), 𝔼.inv.g1 f n ≤ 0,
+    rw not_exists at hfalse,
+    intros n hn,
+    specialize hfalse n,
+    rw not_exists at hfalse,
+    specialize hfalse hn,
+    linarith,
+  clear hfalse,
+  cases f with f hf,
+  unfold P' at hf,
+  rw set.mem_set_of_eq at hf,
+  have hfalse1 :  ∀ (n : ℤ), 0 < n → 𝔼.inv.g1 ⟨f, hf⟩ n = 0,
+    intros n hn0,
+    specialize hfalse' n hn0,
+    have hn0' : 0 ≤ n,
+      linarith,
+    have := lemma31 ⟨f, hf⟩ n hn0',
+    exact le_antisymm hfalse' this,
+  have hfalse2 : ∀ (n : ℤ), 0 < n → n ≤ f.1 0,
+    intros n hn,
+    specialize hfalse1 n hn,
+    unfold 𝔼.inv.g1 at hfalse1, 
+    split_ifs at hfalse1,
+      have hn' : 0 ≤ n,
+        linarith,
+      have := classical.some_spec (lemma28 ⟨f, hf⟩ n hn'),
+      cases this with hsome1 hsome2,
+      simp at hsome1,
+      rw ← hfalse1,
+      simp,
+      exact hsome1.1,
+    exfalso,
+    linarith,
+  have hlt : 0 < max (f.val 0 + 1) 1,
+    rw lt_max_iff,
+      right,
+    norm_num,
+  specialize hfalse2 (max (f.val 0 + 1) 1) hlt,
+  have : (f.val 0 + 1) ≤ max (f.val 0 + 1) 1 := le_max_left (f.val 0 + 1) 1,
+  linarith,
+end
+
+lemma lemma33 (f : P') : ∀ n m (hn : 0 ≤ n) (hm : n ≤ m), 𝔼.inv.g1 f n ≤ 𝔼.inv.g1 f m :=
+begin
+  intros n m hn hm,
+  unfold 𝔼.inv.g1,
+  have hm' : 0 ≤ m,
+    linarith,
+  split_ifs,
+  have h1 := classical.some_spec (lemma28 f n hn),
+  have h2 := classical.some_spec (lemma28 f m hm'),
+  set gn := classical.some (lemma28 f n hn) with hgn,
+  set gm := classical.some (lemma28 f m hm') with hgm,
+  rw ← hgn at *,
+  rw ← hgm at *,
+  cases h1 with h11 h12,
+  cases h2 with h21 h22,
+  rw set.mem_set_of_eq at *,
+  have : n ≤ f.val.val gm,
+    linarith,
+  specialize h12 gm,
+  rw set.mem_set_of_eq at h12,
+  specialize h12 ⟨this, h21.2⟩,
+  exact h12,
+end
+
+lemma lemma34 (f : P') :  ∃ N (HN : 0 < N), ∀ n (hn : N ≤ n), 0 < 𝔼.inv.g1 f n :=
+begin
+  rcases lemma32 f with ⟨N, hN, h⟩,
+  have : 0 ≤ N,
+    linarith,
+  use [N, hN],
+  intros n hNn,
+  have := lemma33 f N n this hNn,
+  linarith,
+end
+
+lemma lemma35 (f : P') :  ∀ n (hn : 0 ≤ n), n ≤ f.1.1 (𝔼.inv.g1 f n) :=
+begin
+  intros n h0n,
+  unfold 𝔼.inv.g1,
+  split_ifs,
+  have := classical.some_spec (lemma28 f n h0n),
+  set gn := classical.some (lemma28 f n h0n) with hgn,
+  rw ← hgn at *,
+  cases this with hgn1 hgn2,
+  rw set.mem_set_of_eq at hgn1,
+  exact hgn1.1,
+end
+
+lemma lemma36 (f g h : ℤ → ℤ → ℤ) {c : ℤ} {F : P'} : (∀ a b (ha : c ≤ a) (hb : 0 ≤ b) (hgb : 0 < 𝔼.inv.g1 F b), f a b > 0 ∧ g a b < 0) → (∃ C, ∀ a b, abs (h a b - f a b) < C) → 
+  (∃ D, ∀ a b, abs (h a b - g a b) < D) → (∃ E, ∀ a b (ha : c ≤ a) (hb : 0 ≤ b) (hgb : 0 < 𝔼.inv.g1 F b), abs (h a b) < E) :=
+begin
+  rintro h ⟨C, h1⟩ ⟨D, h2⟩,
+  use C + D,
+  intros a b ha hb hgb,
+  specialize h a b ha hb hgb,
+  specialize h1 a b,
+  specialize h2 a b,
+  cases h with hf hg,
+  rw abs_lt at *,
+  cases h1,
+  cases h2,
+  split,
+    linarith,
+  linarith,
+end
+
+lemma lemma37 (f : P') (T : set ℤ) : (∃ C, ∀ x ∈ T, abs (f.1.1 x) < C) → (∃ B, ∀ x ∈ T, abs x ≤ B) :=
+begin
+  rintro ⟨C, hC⟩,
+  by_contradiction hfalse,
+  have hfalse' : ∀ (B : ℤ), ∃ (x : ℤ), x ∈ T ∧ B < abs x,
+    rw not_exists at hfalse,
+    intro B,
+    specialize hfalse B,
+    rw not_forall at hfalse,
+    cases hfalse with x hx,
+    use x,
+    rw not_imp at hx,
+    use hx.1,
+    have := hx.2,
+    simp at this,
+    exact this,
+  clear hfalse,
+  cases f with f hf,
+  unfold P' at hf,
+  rw set.mem_set_of_eq at hf,
+  have := lemma2 f hf,
+  have hD : ∃ D, ∀ p, abs (f.1 p + f.1 (-p)) < D,
+    rcases f with ⟨f, E, hE⟩,
+    use E + abs (f 0),
+    intro p,
+    specialize hE p (-p),
+    rw ← abs_neg at hE,
+    simp at hE,
+    simp,
+    have heq : f p + f (-p) = (f (-p) - (f 0 - f p)) + f 0,
+      ring,
+    rw heq,
+    linarith [abs_add (f (-p) - (f 0 - f p)) (f 0), le_abs_self (f 0)],
+  cases hD with D hD,
+  have h0D : 0 < D,
+    linarith [hD 0, abs_nonneg (f.1 0 + f.1 (-0))],
+  have hCD : 0 < max 0 C + D,
+    linarith [le_max_left 0 C],
+  specialize this (max 0 C + D) hCD,
+  cases this with N hN,
+  rcases hfalse' N with ⟨x, hxT, hNx⟩,
+  rw lt_abs at hNx,
+  cases hNx,
+    specialize hC x hxT,
+    specialize hN x hNx,
+    simp at hC,
+    simp at hN,
+    linarith [le_abs_self ((↑f : (ℤ → ℤ)) x), le_max_left 0 C, le_max_right 0 C],
+  specialize hC x hxT,
+  specialize hN (-x) hNx,
+  specialize hD x,
+  simp at hC,
+  simp at hN,
+  have : abs ((↑f : ℤ → ℤ) (-x)) < C + D,
+    rw ← abs_neg at hC,
+    simp at hD,
+    have : (↑f : ℤ → ℤ) (-x) = -(↑f : ℤ → ℤ) x + ((↑f : ℤ → ℤ) x + (↑f : ℤ → ℤ) (-x)),
+      ring,
+    rw this,
+    linarith [abs_add (-(↑f : ℤ → ℤ) x) ((↑f : ℤ → ℤ) x + (↑f : ℤ → ℤ) (-x))],
+  linarith [le_abs_self ((↑f : (ℤ → ℤ)) (-x)), le_max_right 0 C],
+end
+
+lemma lemma38 (f : P') : ∃ C, ∀ m n, abs ((f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n)) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m - 1) - f.1.1 (𝔼.inv.g1 f n - 1))) < C :=
+begin
+  rcases f with ⟨⟨f, C, hC⟩, hf⟩,
+  use 2 * C + 2 * abs (f 1),
+  intros m n,
+  simp,
+  ring,
+  have hC' := hC,
+  specialize hC (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ m - 1) 1,
+  specialize hC' (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ n - 1) 1,
+  simp at hC,
+  simp at hC',
+  rw abs_lt at *,
+  cases hC,
+  cases hC',
+  split,
+    linarith [le_abs_self (f 1)],
+  linarith [le_abs_self (-f 1), abs_neg (f 1)],
+end
+
+lemma lemma39 (f : P') : ∃ C, ∀ m n, abs ((f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n)) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n) - 1) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n))) < C :=
+begin
+  rcases f with ⟨⟨f, C, hC⟩, hf⟩,
+  use C + abs (f 1),
+  intros m n,
+  simp,
+  ring,
+  specialize hC (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ (m + n) - 1) 1,
+  simp at hC,
+  rw abs_lt at *,
+  cases hC,
+  split,
+    linarith [le_abs_self (-f 1), abs_neg (f 1)],
+  linarith [le_abs_self (f 1)],
+end
+
+lemma lemma40 (f : P') : ∃ C, ∀ m n, abs (f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n))) < C :=
+begin
+  rcases f with ⟨⟨f, C, hC⟩, hf⟩,
+  use 2 * C,
+  intros m n,
+  have : ∀ p q r, abs (f(r - p - q) - (f r - f p - f q)) < 2 * C,
+    intros p q r,
+    have hC' := hC,
+    specialize hC (r - p - q) (p + q),
+    specialize hC' p q,
+    simp at hC,
+    have heq : r - p - q + (p + q) = r,
+      ring,
+    rw heq at hC,
+    simp at hC',
+    rw abs_lt at *,
+    cases hC,
+    cases hC',
+    split,
+      linarith,
+    linarith,
+  exact this (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ m) (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ n) (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ (m + n)),
+end
+
+lemma lemma41 (f : P') : ∃ C, ∀ m n, abs (f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m - 1) - f.1.1 (𝔼.inv.g1 f n - 1))) < C :=
+begin
+  cases lemma38 f with C1 hC1,
+  cases lemma40 f with C2 hC2,
+  use C1 + C2,
+  intros m n,
+  specialize hC1 m n,
+  specialize hC2 m n,
+  rw abs_lt at *,
+  split,
+    linarith,
+  linarith,
+end
+
+lemma lemma42 (f : P') : ∃ C, ∀ m n, abs (f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n) - 1) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n))) < C :=
+begin
+  cases lemma39 f with C1 hC1,
+  cases lemma40 f with C2 hC2,
+  use C1 + C2,
+  intros m n,
+  specialize hC1 m n,
+  specialize hC2 m n,
+  rw abs_lt at *,
+  split,
+    linarith,
+  linarith,
+end
+
+lemma lemma43 (f : P') :  ∀ n (hn : 0 ≤ n), 0 < 𝔼.inv.g1 f n → (f.1.1 (𝔼.inv.g1 f n - 1) < n ∧ n ≤ f.1.1 (𝔼.inv.g1 f n)) :=
+begin
+  intros n h0n h,
+  unfold 𝔼.inv.g1,
+  split,
+  { split_ifs,
+    have := classical.some_spec (lemma28 f n h0n),
+    set gn := classical.some (lemma28 f n h0n) with hgn,
+    rw ← hgn at *,
+    cases this with hgn1 hgn2,
+    by_contradiction hfgn,
+    rw not_lt at hfgn,
+    specialize hgn2 (gn - 1),
+    have : gn - 1 ∈ {m : ℤ | n ≤ f.val.val m ∧ 0 ≤ m},
+      rw set.mem_set_of_eq,
+      use hfgn,
+      unfold 𝔼.inv.g1 at h,
+      split_ifs at h,
+      rw ← hgn at *,
+      linarith,
+    specialize hgn2 this,
+    linarith, },
+  { exact lemma35 f n h0n, },
+end
+
+lemma lemma44 (f : P') : ∃ C, ∀ m n (hgn : 0 = 𝔼.inv.g1 f n), abs ((f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n))) - 
+  (f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m - 1))) < C :=
+begin
+  rcases f with ⟨⟨f, C, hC⟩, hf⟩,
+  use 2 * C + abs (f 1),
+  intros m n hgn,
+  rw ←hgn,
+  simp,
+  have : ∀ p q, abs (f (p - q) - (f p - f (q - 1))) < 2 * C + abs (f 1),
+    intros p q,
+    have hC' := hC,
+    specialize hC 1 (q - 1),
+    specialize hC' (p - q) q,
+    simp at hC,
+    simp at hC',
+    rw abs_lt at *,
+    cases hC,
+    cases hC',
+    split,
+      linarith [le_abs_self (f 1)],
+    linarith [le_abs_self (-f 1), abs_neg (f 1)],
+  specialize this (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ (m + n)) (𝔼.inv.g1 ⟨⟨f, _⟩, hf⟩ (m)),
+  exact this,
+end
+
+lemma lemma45 (f g h : ℤ → ℤ → ℤ) {c : ℤ} {F : P'} : (∀ a b (ha : c ≤ a) (hb : 0 ≤ b) (hgb : 0 = 𝔼.inv.g1 F b), f a b > 0 ∧ g a b < 0) → (∃ C, ∀ a b (hgb : 0 = 𝔼.inv.g1 F b),
+  abs (h a b - f a b) < C) → (∃ D, ∀ a b, abs (h a b - g a b) < D) → (∃ E, ∀ a b (ha : c ≤ a) (hb : 0 ≤ b) (hgb : 0 = 𝔼.inv.g1 F b), abs (h a b) < E) :=
+begin
+  rintro h ⟨C, h1⟩ ⟨D, h2⟩,
+  use C + D,
+  intros a b ha hb hgb,
+  specialize h a b ha hb hgb,
+  specialize h1 a b hgb,
+  specialize h2 a b,
+  cases h with hf hg,
+  rw abs_lt at *,
+  cases h1,
+  cases h2,
+  split,
+    linarith,
+  linarith,
+end
+
+lemma lemma46 (f : P') : ∃ (N : ℤ) (C : ℤ) , ∀ (m n : ℤ), N ≤ m → 0 ≤ n → abs (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n) < C :=
+begin
+  rcases lemma34 f with ⟨N, hN, hfN⟩,
+  have h1 : ∀ m n (hm : N ≤ m) (h0n : 0 ≤ n) (hgn : 0 < 𝔼.inv.g1 f n), (f.1.1 (𝔼.inv.g1 f m - 1) < m ∧ m ≤ f.1.1 (𝔼.inv.g1 f m)) ∧ (f.1.1 (𝔼.inv.g1 f n - 1) < n ∧ 
+    n ≤ f.1.1 (𝔼.inv.g1 f n)) ∧ (f.1.1 (𝔼.inv.g1 f (m + n) - 1) < m + n ∧ m + n ≤ f.1.1 (𝔼.inv.g1 f (m + n))),
+    intros m n hm h0n hgn,
+    have h0m : 0 ≤ m,
+      linarith,
+    have h0mn : 0 ≤ m + n,
+      linarith,
+    have hmn : N ≤ m + n,
+      linarith,
+    use [lemma43 f m h0m (hfN m hm), lemma43 f n h0n hgn, lemma43 f (m + n) h0mn (hfN (m + n) hmn)],
+  set f1 : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m - 1) - f.1.1 (𝔼.inv.g1 f n - 1),
+  set f2 : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n) - 1) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n),
+  set f3 : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)),
+  have h2 : ∀ m n (hm : N ≤ m) (h0n : 0 ≤ n) (hgn : 0 < 𝔼.inv.g1 f n), f1 m n > 0 ∧ f2 m n < 0,
+    intros m n hm h0n hgn,
+    rcases h1 m n hm h0n hgn with ⟨⟨hm1, hm2⟩, ⟨hn1, hn2⟩, ⟨hmn1, hmn2⟩⟩,
+    simp only [sub_lt_zero, gt_iff_lt, sub_pos],
+    split,
+      linarith,
+    linarith,
+  have := lemma36 f1 f2 f3 h2 (lemma41 f) (lemma42 f),
+  set T := {t | ∃ m n (hm : N ≤ m) (hn : 0 ≤ n) (hgn : 0 < 𝔼.inv.g1 f n), (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)) = t},
+  have hCT : ∃ C, ∀ x ∈ T, abs (f.1.1 x) < C,
+    cases this with E hE,
+    use E,
+    intros x hxT,
+    rcases hxT with ⟨m, n, hm, hn, hgn, h⟩,
+    specialize hE m n hm hn hgn,
+    rw ← h,
+    linarith,
+  cases lemma37 f T hCT with C1 hC1,
+  have h3 : ∀ m n (hm : N ≤ m) (h0n : 0 ≤ n) (hgn : 0 = 𝔼.inv.g1 f n), (f.1.1 (𝔼.inv.g1 f m - 1) < m ∧ m ≤ f.1.1 (𝔼.inv.g1 f m)) ∧ 
+    (n ≤ f.1.1 (𝔼.inv.g1 f n)) ∧ (f.1.1 (𝔼.inv.g1 f (m + n) - 1) < m + n ∧ m + n ≤ f.1.1 (𝔼.inv.g1 f (m + n))),
+    intros m n hm h0n hgn,
+    have h0m : 0 ≤ m,
+      linarith,
+    have h0mn : 0 ≤ m + n,
+      linarith,
+    have hmn : N ≤ m + n,
+      linarith,
+    use [lemma43 f m h0m (hfN m hm), lemma35 f n h0n, lemma43 f (m + n) h0mn (hfN (m + n) hmn)],
+  set f1' : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n)) - f.1.1 (𝔼.inv.g1 f m - 1),
+  set f2' : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n) - 1) - f.1.1 (𝔼.inv.g1 f m) - f.1.1 (𝔼.inv.g1 f n),
+  set f3' : ℤ → ℤ → ℤ := λ m n, f.1.1 (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)),
+  have h4 : ∀ m n (hm : N ≤ m) (h0n : 0 ≤ n) (hgn : 0 = 𝔼.inv.g1 f n), f1' m n > 0 ∧ f2' m n < 0,
+    intros m n hm h0n hgn,
+    rcases h3 m n hm h0n hgn with ⟨⟨hm1, hm2⟩, hn1, ⟨hmn1, hmn2⟩⟩,
+    simp only [sub_lt_zero, gt_iff_lt, sub_pos],
+    split,
+      linarith,
+    linarith,
+  have := lemma45 f1' f2' f3' h4 (lemma44 f) (lemma42 f),
+  set T' := {t | ∃ m n (hm : N ≤ m) (hn : 0 ≤ n) (hgn : 0 = 𝔼.inv.g1 f n), (𝔼.inv.g1 f (m + n) - (𝔼.inv.g1 f m) - (𝔼.inv.g1 f n)) = t},
+  have hCT' : ∃ C, ∀ x ∈ T', abs (f.1.1 x) < C,
+    cases this with E hE,
+    use E,
+    intros x hxT,
+    rcases hxT with ⟨m, n, hm, hn, hgn, h⟩,
+    specialize hE m n hm hn hgn,
+    rw ← h,
+    linarith,
+  cases lemma37 f T hCT with C1 hC1,
+  cases lemma37 f T' hCT' with C2 hC2,
+  use [N, (max C1 C2) + 1],
+  intros m n hm hn,
+  by_cases hgn : 0 = 𝔼.inv.g1 f n,
+  { specialize hC2 (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n),
+    have : df (λ (p : ℤ), 𝔼.inv.g1 f p) m n ∈ T',
+      simp,
+      use [m, hm, n, hn, hgn],
+    specialize hC2 this,
+    linarith [le_max_right C1 C2], },
+  { have hgn' : 0 < 𝔼.inv.g1 f n,
+      have := lemma31 f n hn,
+      exact lt_of_le_of_ne this hgn,
+    specialize hC1 (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n),
+    have : df (λ (p : ℤ), 𝔼.inv.g1 f p) m n ∈ T,
+      simp,
+      use [m, hm, n, hn, hgn'],
+    specialize hC1 this,
+    linarith [le_max_left C1 C2], },
+end
+
+lemma lemma47 (f : P') : ∃ (C : ℤ) , ∀ (m n : ℤ), 0 ≤ m → 0 ≤ n → abs (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n) < C :=
+begin
+  rcases lemma46 f with ⟨N, C, hfN⟩,
+  have hfs1 : set.finite (set.image2 (λ m n, abs (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n)) {m | 0 ≤ m ∧ m < N} {n | 0 ≤ n ∧ n < N}),
+    apply set.finite.image2,
+      split,
+      apply fintype.of_finset (finset.Ico_ℤ 0 N),
+      simp,
+    split,
+    apply fintype.of_finset (finset.Ico_ℤ 0 N),
+    simp,
+  have hbdd : bdd_above (set.image2 (λ m n, abs (df (λ (p : ℤ), 𝔼.inv.g1 f p) m n)) {m | 0 ≤ m ∧ m < N} {n | 0 ≤ n ∧ n < N}),
+    apply set.finite.bdd_above hfs1,
+  unfold bdd_above at hbdd,
+  unfold upper_bounds at hbdd,
+  cases hbdd with C1 hC1,
+  simp at hC1,
+  use max C C1 + 1,
+  intros m n hm hn,
+  have hmN := lt_or_le m N,
+  have hnN := lt_or_le n N,
+  cases hmN,
+  { cases hnN,
+      specialize @hC1 (abs (𝔼.inv.g1 f (m + n) - 𝔼.inv.g1 f m - 𝔼.inv.g1 f n)) m hm hmN n hn hnN rfl,
+      simp,
+      linarith [le_max_right C C1],
+    specialize hfN n m hnN hm,
+    simp at hfN,
+    simp,
+    have : 𝔼.inv.g1 f (m + n) - 𝔼.inv.g1 f m - 𝔼.inv.g1 f n = 𝔼.inv.g1 f (n + m) - 𝔼.inv.g1 f n - 𝔼.inv.g1 f m,
+      rw [add_comm],
+      ring,
+    rw this,
+    linarith [le_max_left C C1], },
+  { specialize hfN m n hmN hn,
+    linarith [le_max_left C C1], },
+end
+
+noncomputable def 𝔼.inv.g : P' → S := λ f, ⟨λ p, 𝔼.inv.g1 f p, 
+begin
+  apply lemma26,
+  { intros p hp,
+    unfold 𝔼.inv.g1,
+    split_ifs with hp1 hp2,
+          exfalso,
+          linarith,
+        exfalso,
+        linarith,
+      refl,
+    exfalso,
+    linarith, },
+  exact lemma47 f,
+end⟩
+
+lemma lemma48 (f : P') : ∃ (C : ℤ), ∀ n (hn : 0 ≤ n), abs (f.1.1 ((𝔼.inv.g f).1 n) - n) < C :=
+begin
+  have H : ∃ (N C : ℤ), ∀ n (hn : N ≤ n), abs (f.1.1 ((𝔼.inv.g f).1 n) - n) < C,
+    rcases lemma34 f with ⟨N, hN, h⟩,
+    have hN' : 0 ≤ N,
+      linarith,
+    set g := 𝔼.inv.g f with hg,
+    choose C hC using f.1.2,
+    use [N, C + abs (f.1.1 1)],
+    intros n hn,
+    specialize h n hn,
+    have h0n : 0 ≤ n,
+      linarith,
+    have key := lemma43 f n h0n h,
+    have : g.val = 𝔼.inv.g1 f,
+      rw hg,
+      refl,
+    rw ← this at *,
+    specialize hC 1 (g.1 n - 1),
+    simp only [add_sub_cancel'_right, d_equal] at hC,
+    cases key,
+    rw abs_lt at *,
+    cases hC,
+    split,
+      linarith [abs_nonneg (f.1.1 1)],
+    linarith [le_abs_self (f.1.1 1)],
+  rcases H with ⟨N, C, H⟩,
+    have hfin : set.finite ((λ n, abs (f.1.1 ((𝔼.inv.g f).1 n) - n)) '' set.Ico 0 N),
+    apply set.finite.image,
+    split,
+    apply fintype.of_finset (finset.Ico_ℤ 0 N),
+    simp,
+  have hbdd : bdd_above ((λ n, abs (f.1.1 ((𝔼.inv.g f).1 n) - n)) '' set.Ico 0 N),
+    apply set.finite.bdd_above hfin,
+  unfold bdd_above at hbdd,
+  unfold upper_bounds at hbdd,
+  cases hbdd with C1 hC1,
+  simp only [and_imp, set.mem_Ico, set.mem_image, set.mem_set_of_eq, exists_imp_distrib] at hC1,
+  use max C C1 + 1,
+  intros n hn,
+  have hnN := lt_or_le n N,
+  cases hnN,
+    specialize @hC1 (abs (f.val.val ((𝔼.inv.g f).val n) - n)) n hn hnN rfl,
+    linarith [le_max_right C C1],
+  specialize H n hnN,
+  linarith [le_max_left C C1],
+end
+
+lemma lemma49 : ∀ (a : 𝔼) (ha : a ∈ P), ∃ b, a * b = 1 :=
+begin
+  rintro a ⟨f, hf, h⟩,
+  have hfP' : f ∈ P',  
+    exact h,
+  use ↑(𝔼.inv.g ⟨f, hfP'⟩),
+  rw ← hf,
+  unfold has_mul.mul distrib.mul ring.mul comm_ring.mul has_one.one monoid.one ring.one comm_ring.one,
+  rw [lemma17, quotient_add_group.eq],
+  apply lemma4,
+  cases lemma48 ⟨f, hfP'⟩ with C hC,
+  use C,
+  intros p hp,
+  specialize hC p hp,
+  rw ← abs_neg at hC,
+  simp at hC,
+  rw [add_comm],
+  exact hC,
+end
+
+lemma lemma50 : ∀ a b, a ∈ P → b ∈ P → a * b ∈ P :=
+begin
+  intros a b ha hb,
+  rcases ha with ⟨u, hu, ha⟩,
+  rcases hb with ⟨v, hv, hb⟩,
+  rw [← hu, ← hv],
+  unfold has_mul.mul distrib.mul ring.mul field.mul comm_ring.mul division_ring.mul,
+  rw lemma17,
+  use [⟨u.val ∘ v.val, lemma14 u v⟩, rfl],
+  rw lemma8 at *,
+  intros C hC,
+  cases ha C hC with M hM,
+  have : 0 < max M 1,
+    rw lt_max_iff,
+    right,
+    norm_num,
+  cases hb (max M 1) this with N hN,
+  use N,
+  intros p hNp,
+  specialize hN p hNp,
+  have hvval : M < v.val p,
+    rw max_lt_iff at hN,
+    exact hN.1,
+  specialize hM (v.val p) hvval,
+  exact hM,
+end
+
+lemma lemma51 : (1 : 𝔼) ∈ P :=
+begin
+  use [(⟨(id : ℤ → ℤ), lemma16⟩ : S), rfl],
+  intros n hn,
+  use n + 1,
+  split,
+    linarith,
+  simp,
+end
+
+noncomputable def 𝔼.inv : 𝔼 → 𝔼 := λ a,
+if ha1 : a ∈ P then begin
+  choose b hb using lemma49 a ha1,
+  exact b,
+end 
+else if ha2 : a = 0 then (0 : 𝔼) else begin
+  choose b hb using lemma49 (-a) (lemma30 ha1 ha2),
+  exact -b,
+end
+
+noncomputable instance field_𝔼 : field 𝔼 :=
+{ inv := 𝔼.inv,
+  exists_pair_ne := begin
+    use [0, 1],
+    have h0P := lemma10,
+    have h1P := lemma51,
+    intro h01,
+    rw h01 at h0P,
+    exact h0P h1P,
+  end,
+  mul_inv_cancel := begin
+    intros a ha,
+    unfold has_inv.inv 𝔼.inv,
+    split_ifs,
+      have := classical.some_spec (lemma49 a h),
+      exact this,
+    have := classical.some_spec (𝔼.inv._proof_2 a h ha),
+    have heq : a * -(classical.some (𝔼.inv._proof_2 a h ha)) = 
+      -a * (classical.some (𝔼.inv._proof_2 a h ha)),
+      ring,
+    rw heq,
+    exact this,
+  end,
+  inv_zero := begin   
+    unfold has_inv.inv 𝔼.inv,
+    split_ifs,
+      exfalso,
+      exact lemma10 h,
+    refl,
+  end,
+  ..comm_ring_𝔼 }
+
+noncomputable instance linear_ordered_field_𝔼 : linear_ordered_field 𝔼 :=
+{ le := λ a b, -a + b ∈ P ∪ {0},
+  lt := λ a b, -a + b ∈ P,
+  le_refl := begin
+    intro a,
+    simp,
+  end,
+  le_trans := begin
+    intros a b c hab hbc,
+    simp at *,
+    cases hab,
+    { cases hbc,
+      { left,
+        rw [neg_add_eq_zero.mp hab, neg_add_eq_zero.mp hbc],
+        simp, },
+      { rw neg_add_eq_zero.mp hab,
+        cc, }, },
+    { cases hbc,
+      { rw ← (neg_add_eq_zero.mp hbc),
+        cc, },
+      { right,
+        have h : (-a + b) + (-b + c) ∈ P := lemma9 (-a + b) (-b + c) hab hbc,
+        have heq : -a + c = (-a + b) + (-b + c),
+          abel,
+        rw heq,
+        exact h, }, },
+  end,
+  lt_iff_le_not_le := begin
+    intros a b,
+    split,
+    { intro hab,
+      simp at hab,
+      simp,
+      split,
+        cc,
+      intro hfalse,
+      cases hfalse,
+      { rw neg_add_eq_zero.mp hfalse at hab,
+        simp at hab,
+        exact lemma10 hab, },
+      { have heq : -b + a = -(-a + b),
+          abel,
+        rw heq at hfalse,
+        exact lemma11 hab hfalse, }, },
+    { rintro ⟨hab, hba⟩,
+      cases hab,
+      { exact hab, },
+      { simp at hab,
+        simp at hba,
+        have : ¬(-b + a = 0),
+          finish,
+        exfalso,
+        apply this,
+        rw neg_add_eq_zero at *,
+        exact eq.symm hab, }, },
+  end,
+  le_antisymm := begin
+    intros a b hab hba,
+    cases hab,
+    { cases hba,
+      { exfalso,
+        have :  -b + a = -(-a + b),
+          abel,
+        rw this at hba,
+        exact lemma11 hab hba, },
+      { simp at hba,
+        exact eq.symm (neg_add_eq_zero.mp hba), }, },
+    { simp at hab,
+      exact neg_add_eq_zero.mp hab, },
+  end,
+  add_le_add_left := begin
+    intros a b hab c,
+    show -(c + a) + (c + b) ∈ P ∪ {0},
+    have : -(c + a) + (c + b) = -a + b,
+      abel,
+    rw this,
+    exact hab,
+  end,
+  mul_pos := begin
+    intros a b ha hb,
+    unfold has_lt.lt preorder.lt partial_order.lt ordered_add_comm_group.lt at *,
+    simp at *,
+    exact lemma50 a b ha hb,
+  end,
+  le_total := begin
+    intros a b,
+    unfold has_le.le preorder.le partial_order.le ordered_add_comm_group.le at *,
+    simp at *,
+    cases lemma29 (-a + b),
+      left,
+      right,
+      exact h,
+    cases h,
+      left,
+      left,
+      exact h,
+    simp at h,
+    right,
+    right,
+    exact h,
+  end,
+  zero_lt_one := begin
+    unfold has_lt.lt preorder.lt partial_order.lt ordered_add_comm_group.lt,
+    simp,
+    unfold field.zero comm_ring.zero field.one comm_ring.one add_comm_group.zero add_group.zero,
+    simp,
+    exact lemma51,
+  end,
+  ..field_𝔼 }
+
+lemma lemma52 : ∀ n, (λ p, n * p) ∈ S  := 
+begin
+  intro n,
+  use 1,
+  intros p q,
+  simp,
+  ring,
+  simp,
+end
+
+lemma lemma53 : ∀ n : ℕ, (n : 𝔼) = 
+  @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨λ p, n * p, lemma52 n⟩ :=
+begin
+  intro n,
+  induction n,
+    simp,
+    refl,
+  simp,
+  rw n_ih,
+  ring,
+  unfold has_one.one monoid.one ring.one division_ring.one field.one comm_ring.one,
+  have : @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨has_mul.mul ↑n_n, lemma52 n_n⟩ + @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨id, lemma16⟩ = 
+    @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t (⟨has_mul.mul ↑n_n, lemma52 n_n⟩ + ⟨id, lemma16⟩),
+    refl,
+  rw this,
+  unfold has_add.add add_semigroup.add add_monoid.add add_group.add,
+  simp,
+  have heq : ∀ (z : ℤ), ↑n_n * z + z = (↑n_n + 1) * z,
+    intro z,
+    ring,
+  simp_rw heq,
+  refl,
+end
+
+lemma lemma54 (f g : S) (hfg : (↑f : 𝔼) = ↑g) : (∀ (C : ℤ), 0 < C → (∃ (N : ℤ), ∀ (p : ℤ), N < p → C < f.val p))
+  → (∀ (C : ℤ), 0 < C → (∃ (N : ℤ), ∀ (p : ℤ), N < p → C < g.val p)) :=
+begin
+  intro hf,
+  intros C hC,
+  have hfg' : (0 : 𝔼) = -↑(f : S) + ↑(g : S),
+    rw hfg,
+    simp,
+  change ↑(0 : S) = ↑(-f + g) at hfg',
+  rw quotient_add_group.eq at hfg',
+  simp at hfg',
+  cases hfg' with B hB,
+  change ∀ (p : ℤ), abs (-f.val p + g.val p) < B at hB,
+  have h0BC : 0 < B + C,
+    linarith [hB 0, abs_nonneg (-f.val 0 + g.val 0)],
+  cases hf (B + C) h0BC with N hN,
+  use N,
+  intros p hNp,
+  specialize hN p hNp,
+  specialize hB p,
+  rw abs_lt at hB,
+  cases hB,
+  linarith,
+end
+
+lemma lemma55 {f g : S} (B : ℤ) : (0 : 𝔼) < ↑g → (∀ p, abs (f.1 p) < abs (g.1 p) + B) → (↑f : 𝔼) ≤ ↑g :=
+begin
+  rintro ⟨v, hvg, hv⟩ habs,
+  simp at hvg,
+  by_contradiction hfalse,
+  simp at hfalse,
+  change ↑((-g) + f) ∈ P at hfalse,
+  rcases hfalse with ⟨gf, hgf, hfalse⟩,
+  rw lemma8 at *,
+  have h1 := lemma54 gf (-g + f) hgf hfalse,
+  have h2 := lemma54 v g hvg hv,
+  have : (0 : ℤ) < max B 1,
+    rw lt_max_iff,
+    norm_num,
+  cases h1 (max B 1) this with N1 h1,
+  cases h2 (max B 1) this with N2 h2,
+  have hle1 : N1 < max N1 N2 + 1,
+    linarith [le_max_left N1 N2],
+  have hle2 : N2 < max N1 N2 + 1,
+    linarith [le_max_right N1 N2],
+  specialize h1 (max N1 N2 + 1) hle1,
+  specialize h2 (max N1 N2 + 1) hle2,
+  specialize habs (max N1 N2 + 1),
+  change max B 1 < -g.val (max N1 N2 + 1) + f.val (max N1 N2 + 1) at h1,
+  have heq : abs (g.val (max N1 N2 + 1)) = g.val (max N1 N2 + 1),
+    rw abs_of_pos,
+    linarith,
+  rw [heq, abs_lt] at habs,
+  cases habs,
+  linarith [le_max_left B 1],
+end
+
+lemma lemma56 : ∀ a : 𝔼, ∃ (n : ℕ) (hn : 0 < n), a ≤ (n : 𝔼) :=
+begin
+  intro a,
+  cases lemma12 a with u hu,
+  rcases lemma23 u with ⟨A, B, hA, hAB⟩,
+  have := int.eq_coe_of_zero_le (le_of_lt hA),
+  cases this with n hAn,
+  have hn : 0 < n,
+    rw hAn at hA,
+    exact int.coe_nat_pos.mp hA,
+  use [n, hn],
+  rw [← hu, lemma53],
+  apply lemma55 B,
+    rw ← lemma53,
+    exact nat.cast_pos.mpr hn,
+  rw ← hAn,
+  intro p,
+  specialize hAB p,
+  have :  A * abs p = abs (A * p),
+    have heq : abs A * abs p = abs (A * p) := (abs_mul A p).symm,
+    rw abs_of_pos hA at heq,
+    exact heq,
+  rw this at hAB,
+  exact hAB,
+end
+
+instance archimedean_𝔼 : archimedean 𝔼 :=
+{ arch := begin
+    intros x y hy,
+    rcases lemma56 x with ⟨D, h0D, hD⟩,
+    rcases lemma56 y⁻¹ with ⟨E, h0E, hE⟩,
+    have h0DE : 0 ≤ D * E := zero_le (D * E),
+    use D * E,
+    simp,
+    have h0y : 0 < y⁻¹,
+      exact inv_pos.mpr hy,  
+    rw [← mul_le_mul_right h0y, mul_assoc, mul_inv_cancel],
+    { simp,
+      apply mul_le_mul hD hE,
+        linarith, 
+      exact nat.cast_nonneg D, }, 
+    linarith,
+  end }
