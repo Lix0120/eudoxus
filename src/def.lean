@@ -684,7 +684,6 @@ begin
   apply lemma15 hxeq hyeq,
 end
 
-
 lemma lemma18 : ∀ x y : S, x = y → -x + y ∈ B :=
 begin
   intros x y hxy,
@@ -2433,7 +2432,6 @@ begin
   linarith,
 end⟩
 
-
 lemma lemma62 : ∀ (x y : 𝔼) (hxy : x < y), ∃ (M N : ℤ) (hN : 0 < N), x < (M : 𝔼) / (N : 𝔼) ∧ (M : 𝔼) / (N : 𝔼) < y :=
 begin
   intros x y hxy,
@@ -2707,3 +2705,4 @@ noncomputable instance : conditionally_complete_linear_order 𝔼 :=
   le_cInf := T_le_cInf,
   ..decidable_linear_order_𝔼,
   ..lattice_𝔼 }
+
