@@ -1,6 +1,7 @@
 import tactic
 import group_theory.quotient_group
 import algebra.archimedean
+import order.conditionally_complete_lattice
 
 open_locale classical
 
@@ -1931,9 +1932,9 @@ noncomputable instance field_𝔼 : field 𝔼 :=
   end,
   ..comm_ring_𝔼 }
 
-@[simp] lemma 𝔼.field.zero_eq : field.zero = (0 : 𝔼) := rfl
+lemma 𝔼.field.zero_eq : field.zero = (0 : 𝔼) := rfl
 
-@[simp] lemma 𝔼.field.one_eq : field.one = (1 : 𝔼) := rfl
+lemma 𝔼.field.one_eq : field.one = (1 : 𝔼) := rfl
 
 noncomputable instance linear_ordered_field_𝔼 : linear_ordered_field 𝔼 :=
 { le := λ a b, -a + b ∈ P ∪ {0},
@@ -2134,8 +2135,9 @@ begin
   linarith [le_max_left B 1],
 end
 
-lemma lemma56 : ∀ a : 𝔼, ∃ (n : ℕ) (hn : 0 < n), a ≤ (n : 𝔼) :=
+instance archimedean_𝔼 : archimedean 𝔼 := 
 begin
+  rw archimedean_iff_nat_le,
   intro a,
   cases lemma12 a with u hu,
   rcases lemma23 u with ⟨A, B, hA, hAB⟩,
@@ -2144,7 +2146,7 @@ begin
   have hn : 0 < n,
     rw hAn at hA,
     exact int.coe_nat_pos.mp hA,
-  use [n, hn],
+  use n,
   rw [← hu, lemma53],
   apply lemma55 B,
     rw ← lemma53,
@@ -2160,20 +2162,548 @@ begin
   exact hAB,
 end
 
-instance archimedean_𝔼 : archimedean 𝔼 :=
-{ arch := begin
-    intros x y hy,
-    rcases lemma56 x with ⟨D, h0D, hD⟩,
-    rcases lemma56 y⁻¹ with ⟨E, h0E, hE⟩,
-    have h0DE : 0 ≤ D * E := zero_le (D * E),
-    use D * E,
-    simp only [nsmul_eq_mul, nat.cast_mul, subtype.val_eq_coe],
-    have h0y : 0 < y⁻¹,
-      exact inv_pos.mpr hy,  
-    rw [← mul_le_mul_right h0y, mul_assoc, mul_inv_cancel],
-    { rw mul_one,
-      apply mul_le_mul hD hE,
-        linarith, 
-      exact nat.cast_nonneg D, }, 
+noncomputable instance : floor_ring 𝔼 := archimedean.floor_ring 𝔼
+
+noncomputable instance decidable_linear_order_𝔼 : decidable_linear_order 𝔼 := classical.DLO 𝔼
+
+noncomputable instance lattice_𝔼 : lattice 𝔼 := by apply_instance
+
+lemma lt_mul_of_div_lt {a b c : 𝔼} (hc : 0 < c) (h : a / c < b) : a < b * c :=
+begin
+  calc
+    a = a / c * c : by rw (div_mul_cancel _ (ne.symm (ne_of_lt hc)))
+  ... < b * c     : by {rw mul_lt_mul_right, exact h, exact hc}
+end
+
+lemma lemma56 : ∀ {x y : 𝔼} (hxy : x < y), ∃ (M N : ℤ) (hN : 0 < N), (N : 𝔼) * x < (M : 𝔼) ∧ (M : 𝔼) < (N : 𝔼) * y :=
+begin
+  intros x y hxy,
+  rcases exists_rat_btwn hxy with ⟨q, hq1, hq2⟩,
+  rcases q with ⟨M, N, h1, h2⟩,
+  use [M, N, int.coe_nat_pos.mpr h1],
+  split,
+    rw mul_comm,
+    apply mul_lt_of_lt_div,
+      exact int.cast_pos.mpr (int.coe_nat_pos.mpr h1),
+    exact hq1,
+  rw mul_comm,
+  apply lt_mul_of_div_lt,
+    exact int.cast_pos.mpr (int.coe_nat_pos.mpr h1),
+  exact hq2,
+end
+
+lemma lemma57 : ∃ C, ∀ (a b : 𝔼), abs (floor (a + b) - floor a - floor b) < C :=
+begin
+  use 2,
+  intros a b,
+  have ha1 := floor_le a,
+  have ha2 := lt_floor_add_one a,
+  have hb1 := floor_le b,
+  have hb2 := lt_floor_add_one b,
+  have : (2 : 𝔼) = (↑2 : 𝔼),
+    simp,
+  have h1 : ↑⌊a + b⌋ - ↑⌊a⌋ - ↑⌊b⌋ < (↑2 : 𝔼),
+    linarith [floor_le (a + b)],
+  have h2 : -(↑2 : 𝔼) < ↑⌊a + b⌋ - ↑⌊a⌋ - ↑⌊b⌋,
+    linarith [lt_floor_add_one (a + b)],
+  have h3 : ↑⌊a + b⌋ - ↑⌊a⌋ - ↑⌊b⌋ = (↑(⌊a + b⌋ - ⌊a⌋ - ⌊b⌋) : 𝔼),
+    simp,
+  rw h3 at *,
+  have h1' : ⌊a + b⌋ - ⌊a⌋ - ⌊b⌋ < 2,
+    rw ← @int.cast_lt 𝔼,
+    exact h1,
+  have h2' : -2 < ⌊a + b⌋ - ⌊a⌋ - ⌊b⌋,
+    rw ← @int.cast_lt 𝔼,
+    exact h2,
+  rw abs_lt,
+  split,
     linarith,
-  end }
+  linarith,
+end
+
+@[simp] lemma upper_bounds_eq' {S : set 𝔼} : upper_bounds S = {x : 𝔼 | ∀ ⦃a : 𝔼⦄, a ∈ S → a ≤ x} := rfl
+
+lemma lemma58 (K : set ℤ) (hK1 : set.finite K) (hK2 : K.nonempty) : 
+  ∃ n (hn : n ∈ K), ∀ t ∈ K, t ≤ n :=
+begin
+  cases set.finite.exists_finset hK1 with K' hK'K,
+  have hK' : K'.nonempty,
+    cases hK2 with x hx,
+    use x,
+    rw hK'K,
+    exact hx,
+  use finset.max' K' hK',
+  simp_rw ← hK'K,
+  exact ⟨finset.max'_mem K' (hK'), finset.le_max' K' (hK')⟩,
+end
+
+lemma lemma59 (K : set ℤ) (hK1 : K.nonempty) (hK2 : bdd_above K) : 
+  ∃ n (hn : n ∈ K), ∀ t ∈ K, t ≤ n :=
+begin
+  cases hK2 with M hM,
+  simp at hM,
+  cases hK1 with m hm,
+  set K' := K ∩ set.Icc m M with hK'K,
+  have hK'1 : set.finite K',
+    have : (set.Icc m M).finite := ⟨fintype.of_finset (finset.Ico_ℤ m (M + 1)) (by {simp [int.lt_add_one_iff]})⟩,
+    rw hK'K,
+    apply set.finite.subset this,
+    exact set.inter_subset_right K (set.Icc m M),
+  have hK'2 : K'.nonempty,
+    rw hK'K,
+    use [m, hm],
+    simp,
+    apply hM,
+    exact hm,
+  rcases lemma58 K' hK'1 hK'2 with ⟨n, hn, h⟩,
+  rw hK'K at *,
+  use [n, hn.1],
+  intros t htK,
+  have htm := lt_or_le t m,
+  cases htm,
+    have : m ≤ n,
+      rcases hn with ⟨hn1, hn2, hn3⟩,
+      exact hn2,
+    linarith,
+  apply h,
+  use [htK, htm, hM htK],
+end
+
+lemma lemma60 (p : ℤ) (hp : 0 ≤ p) (T : set 𝔼) (hT1 : T.nonempty) (hT2 : bdd_above T) : 
+  ∃ n (hn : n ∈ {m | ∃ x ∈ T, m = floor ((p : 𝔼) * x)}), ∀ t ∈ {m | ∃ x ∈ T, m = floor ((p : 𝔼) * x)}, t ≤ n :=
+begin
+  have h1 : {m | ∃ x ∈ T, m = floor ((p : 𝔼) * x)}.nonempty,
+    cases hT1 with x hx,
+    use [⌊↑p * x⌋, x, hx],
+  have h2 : bdd_above {m | ∃ x ∈ T, m = floor ((p : 𝔼) * x)},
+    cases hT2 with M hM,
+    use ⌊↑p * M⌋ + 1,
+    simp only [set.mem_set_of_eq, exists_imp_distrib, upper_bounds_eq],
+    intros a x hxT hapx,
+    rw hapx,
+    have hpxpM : ↑p * x ≤ ↑p * M,
+      apply mul_le_mul_of_nonneg_left, 
+        simp at hM,
+        exact hM hxT,
+      exact int.cast_nonneg.mpr hp,
+    have : ↑⌊↑p * x⌋ ≤ ↑⌊↑p * M⌋ + (1 : 𝔼),
+      linarith [floor_le (↑p * x), lt_floor_add_one (↑p * M)],
+    have heq : ↑⌊↑p * M⌋ + 1 = (↑(⌊↑p * M⌋ + 1) : 𝔼),
+      simp,
+    rw heq at this,
+    rw ← @int.cast_le 𝔼,
+    exact this,
+  exact lemma59 {m | ∃ x ∈ T, m = floor ((p : 𝔼) * x)} h1 h2,
+end
+
+noncomputable def T_sup_f1 (T : set 𝔼) (hT1 : T.nonempty) (hT2 : bdd_above T) : ℤ → ℤ := λ p, 
+if hp : 0 ≤ p then begin
+  choose n hn using lemma60 p hp T hT1 hT2,
+  exact n,
+end
+else begin
+  simp at hp,
+  have hp' : 0 ≤ -p,
+    linarith,
+  choose n hn using lemma60 (-p) hp' T hT1 hT2,
+  exact -n,
+end
+
+lemma lemma61 (a p : ℤ) (T : set 𝔼) (hT1 : T.nonempty) (hT2 : bdd_above T) (hp : 0 ≤ p) (m1 m2 : 𝔼) (hm1 : m1 ∈ T) (hm2 : m2 ∈ T) :
+  a = T_sup_f1 T hT1 hT2 p → a = ⌊↑p * m1⌋ → a = ⌊↑p * max m1 m2⌋ :=
+begin
+  intros ha1 ha2,
+  simp only [T_sup_f1] at ha1,
+  split_ifs at ha1,
+  rcases classical.some_spec (lemma60 p hp T hT1 hT2) with ⟨⟨c, hc, hfc1⟩, hfc2⟩,
+  set fp := classical.some (lemma60 p hp T hT1 hT2) with hfpeq,
+  rw ← hfpeq at *,
+  have h1 : ⌊↑p * m1⌋ ≤ ⌊↑p * max m1 m2⌋,
+    have : (↑p * m1 : 𝔼) ≤ ↑p * max m1 m2,
+      apply mul_le_mul_of_nonneg_left (le_max_left m1 m2),
+      exact int.cast_nonneg.mpr hp,
+    exact floor_mono this,
+  have h2 : ⌊↑p * max m1 m2⌋ ≤ ⌊↑p * m1⌋,
+    specialize hfc2 ⌊↑p * max m1 m2⌋,
+    rw ha2 at ha1,
+    rw ← ha1 at hfc2,
+    apply hfc2,
+    use max m1 m2,
+    split,
+      cases max_choice m1 m2,
+        rw h,
+        exact hm1,
+      rw h,
+      exact hm2,
+    refl,
+  linarith,
+end
+
+noncomputable def T_sup_f (T : set 𝔼) (hT1 : T.nonempty) (hT2 : bdd_above T) : S := ⟨λ p, T_sup_f1 T hT1 hT2 p, 
+begin
+  apply lemma26,
+  { intros p hp,
+    simp only [T_sup_f1],
+    split_ifs with hp1 hp2,
+          exfalso,
+          linarith,
+        exfalso,
+        linarith,
+      refl,
+    exfalso,
+    linarith, },
+  cases lemma57 with C hC,
+  use C,
+  intros m n hm hn,
+  have hmn : 0 ≤ m + n,
+    linarith,
+  rw abs_lt,
+  simp,
+  simp only [T_sup_f1],
+  split_ifs,
+  set fm := classical.some (lemma60 m hm T hT1 hT2) with hfmeq,
+  set fn := classical.some (lemma60 n hn T hT1 hT2) with hfneq,
+  set fmn := classical.some (lemma60 (m + n) hmn T hT1 hT2) with hfmneq,
+  rcases classical.some_spec (lemma60 m hm T hT1 hT2) with ⟨⟨xm, hxm, hfm1⟩, hfm2⟩,
+  rcases classical.some_spec (lemma60 n hn T hT1 hT2) with ⟨⟨xn, hxn, hfn1⟩, hfn2⟩,
+  rcases classical.some_spec (lemma60 (m + n) hmn T hT1 hT2) with ⟨⟨xmn, hxmn, hfmn1⟩, hfmn2⟩,
+  rw ← hfmeq at *,
+  rw ← hfneq at *,
+  rw ← hfmneq at *,
+  set x1 := max xm xn with hx1,
+  have hx1' : x1 = max xn xm,
+    rw hx1,
+    exact max_comm xm xn,
+  have hx1'' : x1 ∈ T,
+    rw hx1,
+    cases max_choice xm xn,
+      rw h,
+      exact hxm,
+    rw h,
+    exact hxn,
+  have hx11 := lemma61 fm m T hT1 hT2 hm xm xn hxm hxn,
+  have : fm = T_sup_f1 T hT1 hT2 m,
+    simp only [T_sup_f1],
+    split_ifs,
+    exact hfmeq,
+  specialize hx11 this hfm1,
+  have hx12 := lemma61 fn n T hT1 hT2 hn xn xm hxn hxm,
+  have : fn = T_sup_f1 T hT1 hT2 n,
+    simp only [T_sup_f1],
+    split_ifs,
+    exact hfneq,
+  specialize hx12 this hfn1,
+  rw ← hx1 at hx11,
+  rw ← hx1' at hx12,
+  set x := max x1 xmn with hx,
+  have hx' : x = max xmn x1,
+    rw hx,
+    exact max_comm x1 xmn,
+  have hx01 := lemma61 fm m T hT1 hT2 hm x1 xmn hx1'' hxmn,
+  have : fm = T_sup_f1 T hT1 hT2 m,
+    simp only [T_sup_f1],
+    split_ifs,
+    exact hfmeq,
+  specialize hx01 this hx11,
+  have hx02 := lemma61 fn n T hT1 hT2 hn x1 xmn hx1'' hxmn,
+  have : fn = T_sup_f1 T hT1 hT2 n,
+    simp only [T_sup_f1],
+    split_ifs,
+    exact hfneq,
+  specialize hx02 this hx12,
+  have hx03 := lemma61 fmn (m + n) T hT1 hT2 hmn xmn x1 hxmn hx1'',
+  have : fmn = T_sup_f1 T hT1 hT2 (m + n),
+    simp only [T_sup_f1],
+    split_ifs,
+    exact hfmneq,
+  specialize hx03 this hfmn1,
+  rw ← hx at hx01,
+  rw ← hx at hx02,
+  rw ← hx' at hx03,
+  have hmxnx : ↑(m + n) * x = ↑m * x + ↑n * x,
+    have heq : (↑(m + n) : 𝔼) = ↑m + ↑n,
+      simp,
+    rw heq,
+    ring,
+  rw hmxnx at hx03,
+  specialize hC (↑m * x) (↑n * x),
+  rw abs_lt at hC,
+  split,
+    linarith,
+  linarith,
+end⟩
+
+
+lemma lemma62 : ∀ (x y : 𝔼) (hxy : x < y), ∃ (M N : ℤ) (hN : 0 < N), x < (M : 𝔼) / (N : 𝔼) ∧ (M : 𝔼) / (N : 𝔼) < y :=
+begin
+  intros x y hxy,
+  rcases exists_rat_btwn hxy with ⟨q, hq1, hq2⟩,
+  rcases q with ⟨M, N, h1, h2⟩,
+  use [M, N, int.coe_nat_pos.mpr h1, hq1, hq2],
+end
+
+noncomputable def T_sup (T : set 𝔼) : 𝔼 := 
+if hT1 : T.nonempty ∧ bdd_above T then
+  if hT2 : ∃ x ∈ T, ∀ y ∈ T, y ≤ x then begin
+    choose x hx using hT2,
+    exact x,
+  end 
+  else (↑(T_sup_f T hT1.1 hT1.2) : 𝔼)
+else 0
+
+lemma lemma63 (f g : S) : (∀ p (hp : 0 ≤ p), f.1 p ≤ g.1 p) → (↑f : 𝔼) ≤ (↑g : 𝔼) :=
+begin
+  intro h,
+  by_contradiction hfalse,
+  simp at hfalse,
+  change ↑(-g + f) ∈ P at hfalse,
+  rcases hfalse with ⟨gf, hgf, hfalse⟩,
+  have := lemma54 gf (-g + f) hgf,
+  rw lemma8 at hfalse,
+  specialize this hfalse,
+  have h01 : (0 : ℤ) < 1,
+    norm_num,
+  cases this 1 h01 with N hN,
+  have hN01 : N < max (N + 1) 0,
+    linarith [le_max_left (N + 1) 0],
+  have hN02 : 0 ≤ max (N + 1) 0,
+    exact le_max_right (N + 1) 0,
+  specialize hN (max (N + 1) 0) hN01,
+  specialize h (max (N + 1) 0) hN02,
+  simp only [S.add_eq', S.add_eq, S.neg_eq', lt_neg_add_iff_add_lt, S.neg_eq] at hN,
+  linarith,
+end
+
+lemma lemma64 : ∀ n : ℤ, (n : 𝔼) = 
+  @coe ↥S 𝔼 eudoxus_reals_group.has_lift_t ⟨λ p, n * p, lemma52 n⟩ :=
+begin
+  intro n,
+  cases le_or_lt n 0,
+    have hn : 0 ≤ -n,
+      linarith,
+    cases int.eq_coe_of_zero_le hn with n' hn',
+    have := lemma53 n',
+    have heq1 : (↑n : 𝔼) = -↑(↑n' : ℤ),
+      rw ← hn',
+      simp,
+    have heq2 : (↑n : 𝔼) = -↑(n' : ℕ),
+      rw heq1,
+      simp,
+    have heq3 : (↑(⟨λ (p : ℤ), n * p, lemma52 n⟩ : S) : 𝔼) = -↑(⟨λ (p : ℤ), ↑n' * p, lemma52 ↑n'⟩ : S),
+      rw ← hn',
+      show ↑(⟨λ (p : ℤ), n * p, lemma52 n⟩ : S) = ↑(-⟨λ (p : ℤ), -n * p, lemma52 (-n)⟩ : S),
+      rw quotient_add_group.eq,
+      use 1,
+      intro p,
+      simp,
+    linarith,
+  have hn : 0 ≤ n,
+    linarith,
+  cases int.eq_coe_of_zero_le hn with n' hn',
+  rw hn',
+  exact lemma53 n',
+end
+
+lemma T_le_cSup : ∀ (s : set 𝔼) (a : 𝔼), bdd_above s → a ∈ s → a ≤ T_sup s :=
+begin
+  intros T x hT hxT,
+  simp only [T_sup],
+  split_ifs with hT1 hT3,
+  { cases classical.some_spec hT3,
+    exact h x hxT, },
+  { have hT3' : ∀ (x : 𝔼) (H : x ∈ T), ∃ (y : 𝔼), y ∈ T ∧ x < y,
+      rw not_exists at hT3,
+      intros x hx,
+      specialize hT3 x,
+      rw not_exists at hT3,
+      specialize hT3 hx,
+      rw not_forall at hT3,
+      cases hT3 with y hy,
+      use y,
+      rw not_imp at hy,
+      cases hy with hy1 hy2,
+      simp at hy2,
+      use [hy1, hy2],
+    rcases hT3' x hxT with ⟨y, hy, hxy⟩,
+    rcases lemma62 x y hxy with ⟨M, N, hN, hMN1, hMN2⟩,
+    have : ∀ p (h0p : 0 ≤ p), p * M ≤ T_sup_f1 T hT1.1 hT1.2 (p * N),
+      intros p hp,
+      have hpN0 : 0 ≤ p * N,
+        apply mul_nonneg hp,
+        linarith,
+      simp only [T_sup_f1],
+      split_ifs,
+      rcases classical.some_spec (lemma60 (p * N) hpN0 T hT1.1 hT1.2) with ⟨⟨xm, hxmT, hsome1⟩, hsome2⟩,
+      rw hsome1 at *,
+      specialize hsome2 ⌊↑(p * N) * y⌋,
+      rw set.mem_set_of_eq at hsome2,
+      have : ∃ (x : 𝔼) (H : x ∈ T), ⌊↑(p * N) * y⌋ = ⌊↑(p * N) * x⌋,
+        use [y, hy, rfl],
+      specialize hsome2 this,
+      have :  ⌊(↑(p * N) : 𝔼) * (↑M : 𝔼) / (↑N : 𝔼)⌋ ≤ ⌊(↑(p * N) : 𝔼) * (y : 𝔼)⌋,
+        apply floor_mono,
+        rw [div_eq_mul_inv, mul_assoc],
+        apply mul_le_mul_of_nonneg_left,
+          rw [← div_eq_mul_inv],
+          linarith,
+        exact int.cast_nonneg.mpr hpN0,
+      have heq : (↑(p * N) : 𝔼) * (↑M : 𝔼) / (↑N : 𝔼) = (↑(p * M) : 𝔼),
+        have heq1 : ∀ N : ℤ, (↑(p * N) : 𝔼) = ↑p * ↑N, 
+          intro N,
+          simp,
+        rw [heq1 N, heq1 M, mul_comm, div_eq_mul_inv, mul_assoc, mul_assoc, mul_inv_cancel],
+          ring,
+        simp,
+        linarith,
+        rw heq at this,
+      have heq' : ⌊(↑(p * M) : 𝔼)⌋ = p * (M : ℤ),
+        rw floor_eq_iff,
+        split,
+          linarith,
+        linarith,
+      linarith,
+    have H := lemma63 (⟨(λ p, M * p), lemma52 M⟩),
+    set fN := (T_sup_f T hT1.1 hT1.2).1 ∘ (⟨(λ p, N * p), lemma52 N⟩ : S).1 with hfN1,
+    have hfN2 : fN ∈ S,
+      rw hfN1,
+      apply lemma14 (T_sup_f T hT1.1 hT1.2) ⟨(λ p, N * p), lemma52 N⟩,
+    specialize H (⟨fN, hfN2⟩ : S),  
+    dsimp at H,
+    dsimp at hfN1,
+    have : (∀ (p : ℤ), 0 ≤ p → M * p ≤ fN p),
+      rw hfN1,
+      intros p h0p,
+      specialize this p h0p,
+      have heq : T_sup_f1 T hT1.1 hT1.2 (p * N) = (↑(T_sup_f T hT1.1 hT1.2) ∘ has_mul.mul N) p,
+        simp,
+        rw mul_comm,
+        simp only [T_sup_f],
+        simp,
+      rw [← heq, mul_comm],
+      exact this,
+      specialize H this,
+    have heq1 : (M : 𝔼) = (⟨has_mul.mul M, lemma52 M⟩ : S) := lemma64 M,
+    have heq2 : ↑(⟨fN, hfN2⟩ : S) = ↑(T_sup_f T hT1.1 hT1.2) * (↑N : 𝔼),
+      simp_rw hfN1,
+      rw [lemma64 N, 𝔼.mul_eq', lemma17],
+      simp,
+    rw [← heq1, heq2, mul_comm] at H,
+    have := @div_le_of_le_mul 𝔼 (linear_ordered_field_𝔼) (↑M) (↑N) (↑(T_sup_f T hT1.1 hT1.2)) (int.cast_pos.mpr hN) H,
+    linarith, },
+  { exfalso,
+    simp at hT1,
+    cases set.eq_empty_or_nonempty T,
+      rw h at hxT,
+      exact hxT,
+    exact hT1 h hT, },
+end
+
+lemma T_cSup_le : ∀ (s : set 𝔼) (a : 𝔼), s.nonempty → a ∈ upper_bounds s → T_sup s ≤ a :=
+begin
+  intros T y hT1 hyT,
+  have hT2 : bdd_above T,
+    use [y, hyT],
+  have hT : T.nonempty ∧ bdd_above T := ⟨hT1, hT2⟩,
+  simp only [T_sup],
+  split_ifs,
+  { simp at hyT, 
+    cases classical.some_spec h with hs1 hs2,
+    exact hyT hs1, },
+  { by_contradiction hfalse,
+    rw not_le at hfalse,
+    rcases lemma56 hfalse with ⟨M, N, hN, hMN1, hMN2⟩,
+    have heq1 := lemma64 M,
+    have hin := lemma14 (T_sup_f T hT1 hT2) ⟨has_mul.mul N, lemma52 N⟩,
+    have heq2 : (↑N : 𝔼) * ↑(T_sup_f T hT1 hT2) = ↑(⟨(↑(T_sup_f T hT1 hT2) ∘ has_mul.mul N), hin⟩ : S),
+      rw [mul_comm, 𝔼.mul_eq', lemma64 N, lemma17],
+      refl,
+    rw [heq1, heq2] at hMN2,
+    simp only [T_sup_f, subtype.coe_mk, subtype.val_eq_coe] at hMN2,
+    rcases hMN2 with ⟨sum, hsumeq, H⟩,
+    rw lemma8 at H,
+    change ↑sum = ↑(-(⟨has_mul.mul M, lemma52 M⟩ : S) + ⟨T_sup_f1 T hT1 hT2 ∘ has_mul.mul N, hin⟩) at hsumeq,
+    have := lemma54 sum (-(⟨has_mul.mul M, lemma52 M⟩ : S) + ⟨T_sup_f1 T hT1 hT2 ∘ has_mul.mul N, hin⟩) hsumeq H,
+    rw ← lemma8 at this,
+    have h01 : (0 : ℤ) < 1,
+      norm_num,
+    rcases this 1 h01 with ⟨p, h0p, hfp⟩,
+    simp at hfp,
+    have hcomm : N * p = p * N := mul_comm N p,
+    rw [mul_comm, hcomm] at hfp,
+    have hpN : 0 ≤ p * N := le_of_lt (mul_pos h0p hN),
+    have hx : ∃ x ∈ T, T_sup_f1 T hT1 hT2 (p * N) = ⌊↑(p * N) * x⌋,
+      simp only [T_sup_f1],
+      split_ifs,
+      cases classical.some_spec (lemma60 (p * N) hpN T hT1 hT2) with hsome1 hsome2,
+      exact hsome1,
+    rcases hx with ⟨x, hxT, hx⟩,
+    specialize hyT hxT,
+    have hle1 : ↑(p * N) * x ≤ ↑(p * N) * y := mul_le_mul_of_nonneg_left hyT (int.cast_nonneg.mpr hpN),
+    have heq3 : ↑(p * N) * y = ↑p * (↑N * y),
+      rw ← mul_assoc,
+      simp,
+    have hle2 : ↑p * (↑N * y) < ↑p * ↑M,
+      rw mul_lt_mul_left,
+        exact hMN1,
+      exact int.cast_pos.mpr h0p,
+    have hle3 : ↑(p * N) * x < ↑p * ↑M,
+      linarith,
+    rw hx at hfp,
+    have hle4 : ⌊(↑(p * N) : 𝔼) * x⌋ ≤ ⌊(↑p : 𝔼) * (↑M : 𝔼)⌋ := floor_mono (le_of_lt hle3),
+    have heq4 : ⌊(↑p : 𝔼) * (↑M : 𝔼)⌋ = p * M,
+      rw floor_eq_iff,
+      split,
+        simp,
+      have : (↑(p * M) : 𝔼) = ↑p * ↑M,
+        simp,
+      linarith,
+    linarith, },
+end
+
+@[simp] lemma lower_bounds_eq' {S : set 𝔼} : lower_bounds S = {x : 𝔼 | ∀ ⦃a : 𝔼⦄, a ∈ S → x ≤ a} := rfl
+
+lemma T_cInf_le : ∀ (s : set 𝔼) (a : 𝔼), bdd_below s → a ∈ s → -T_sup {x : 𝔼 | -x ∈ s} ≤ a :=
+begin
+  intros T x hT hxT,
+  cases hT with y hy,
+  simp at hy,
+  have h1 : bdd_above {x : 𝔼 | -x ∈ T},
+    use -y,
+    intros a ha,
+    simp at ha,
+    specialize hy ha,
+    linarith,
+  have := T_le_cSup {x : 𝔼 | -x ∈ T} (-x) h1,
+  have h2 : -x ∈ {x : 𝔼 | -x ∈ T},
+    simp,
+    exact hxT,
+  specialize this h2,
+  linarith,
+end
+
+lemma T_le_cInf : ∀ (s : set 𝔼) (a : 𝔼), s.nonempty → a ∈ lower_bounds s → a ≤ -T_sup {x : 𝔼 | -x ∈ s} :=
+begin
+  intros T x hT hxT,
+  cases hT with y hy,
+  simp at hxT,
+  have h1 : (-x) ∈ upper_bounds {x : 𝔼 | -x ∈ T},
+    intros a ha,
+    specialize hxT ha,
+    linarith,
+  have h2 : {x : 𝔼 | -x ∈ T}.nonempty,
+    use -y,
+    simp,
+    exact hy,
+  have := T_cSup_le {x : 𝔼 | -x ∈ T} (-x) h2 h1,
+  linarith,
+end
+
+noncomputable instance : conditionally_complete_linear_order 𝔼 :=
+{ Sup := λ T, T_sup T,
+  Inf := λ T, -T_sup {x | -x ∈ T},
+  le_cSup := T_le_cSup,
+  cSup_le := T_cSup_le,
+  cInf_le := T_cInf_le,
+  le_cInf := T_le_cInf,
+  ..decidable_linear_order_𝔼,
+  ..lattice_𝔼 }
