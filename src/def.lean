@@ -42,7 +42,7 @@ begin
     exact hf,
 end⟩
 
-def S.zero : S := ⟨λ p, 0, 1, by simp⟩
+def S.zero : S := ⟨λ p, 0, 1, by norm_num⟩
 
 @[simp] lemma S.add_eq (f g : S) : S.add f g = ⟨λ p, f.1 p + g.1 p, S.add._proof_1 f g⟩ := rfl
 
@@ -55,15 +55,15 @@ instance add_group_S : add_group S := {
     simp,
     ring,
   end,
-  zero := ⟨λ p, 0, 1, by simp⟩,
+  zero := ⟨λ p, 0, 1, by norm_num⟩,
   zero_add := begin
     intro f,
-    show S.add ⟨λ p, 0, 1, by simp⟩ f = f,
+    show S.add ⟨λ p, 0, 1, by norm_num⟩ f = f,
     simp,
   end,
   add_zero := begin
     intro f, 
-    show S.add f ⟨λ p, 0, 1, by simp⟩ = f,
+    show S.add f ⟨λ p, 0, 1, by norm_num⟩ = f,
     simp,
   end,
   neg := λ f, ⟨λ p, - f.1 p, begin
@@ -88,7 +88,7 @@ instance add_group_S : add_group S := {
 
 @[simp] lemma S.neg_eq' (f : S) : -f = S.neg f := rfl
 
-@[simp] lemma S.zero_eq' : (0 : S) = ⟨λ p, 0, 1, by simp⟩ := rfl
+@[simp] lemma S.zero_eq' : (0 : S) = ⟨λ p, 0, 1, by norm_num⟩ := rfl
 
 instance : add_comm_group S := {
   add_comm := begin
@@ -104,7 +104,7 @@ def B : add_subgroup S :=
   zero_mem' := begin
     use 1,
     intro p,
-    simp,
+    norm_num,
   end,
   add_mem' := begin
     rintro f g ⟨C1, hf⟩ ⟨C2, hg⟩,
@@ -160,7 +160,7 @@ begin
   induction m,
   { induction m with m h,
       exfalso,
-      exact hm,
+      norm_num at hm,
     have hm0 : m = 0 ∨ 0 < m,
       exact nat.eq_zero_or_pos m,
     cases hm0,
@@ -187,7 +187,7 @@ begin
         ring,
       linarith, }, },
   { exfalso,
-    exact hm, },
+    linarith [int.neg_succ_lt_zero m], },
 end
 
 theorem QRT : ∀ n m : ℤ, m > 0 → ∃ q r : ℤ, n = m * q + r ∧ (0 ≤ r ∧ r < m) :=
@@ -265,7 +265,7 @@ begin
         have hDnnr : D * nn ≤ r,
           linarith,
         have hDDnn : D ≤ D * nn,
-          exact (le_mul_iff_one_le_right hD').mpr hnn0,
+          exact (le_mul_iff_one_le_right hD').mpr (show nn ≥ 1, by linarith),
         linarith,
       use n + 1,
       split,
@@ -371,7 +371,7 @@ begin
     specialize hC' (-1) hne1,
     linarith [abs_nonneg (f.val (-1))], },
   { specialize hC' p hp,
-    have h01 : (0 : ℤ) < 1,
+    have h01 : (0 : ℤ) ≤ 1,
       norm_num,
     specialize hC 1 h01,
     linarith [abs_nonneg (f.val 1)], },
@@ -656,7 +656,7 @@ lemma lemma16 : (id : ℤ → ℤ) ∈ S :=
 begin
   use 1,
   intros p q,
-  simp,
+  norm_num,
 end
 
 noncomputable def 𝔼.mul : 𝔼 → 𝔼 → 𝔼 := λ a b, 
@@ -690,6 +690,7 @@ begin
   rw hxy,
   simp,
   use 1,
+  norm_num,
 end
 
 lemma lemma19 (f : S) : ∃ C, ∀ p (H : 0 ≤ p) q, abs (f.1 (p * q) - p * (f.1 q)) < (abs p + 1) * C :=
@@ -1144,7 +1145,7 @@ begin
         rw this,
         ring,
       rw [h1 p hp, ← abs_neg, this],
-      exact h2, 
+      simp [h2], 
     have hpq' : 0 ≤ -(p + q),
       linarith,
     specialize h2 (-(p + q)) q hpq' hq,
@@ -1158,7 +1159,7 @@ begin
       rw [eq1, eq2],
       ring,
     rw [h1 p hp, h1 (p + q) hpq, this],
-    exact h2, },
+    simp [h2], },
   have H1 : df f p q = -(df f (-p) (-q)),
     have hpq : p + q < 0,
       linarith,
@@ -1532,9 +1533,6 @@ begin
     specialize hC (r - p - q) (p + q),
     specialize hC' p q,
     simp at hC,
-    have heq : r - p - q + (p + q) = r,
-      ring,
-    rw heq at hC,
     simp at hC',
     rw abs_lt at *,
     cases hC,
@@ -1884,7 +1882,7 @@ begin
   use n + 1,
   split,
     linarith,
-  simp,
+  norm_num,
 end
 
 noncomputable def 𝔼.inv : 𝔼 → 𝔼 := λ a,
@@ -2053,7 +2051,7 @@ begin
   intros p q,
   simp,
   ring,
-  simp,
+  norm_num,
 end
 
 lemma lemma53 : ∀ n : ℕ, (n : 𝔼) = 
@@ -2167,13 +2165,6 @@ noncomputable instance decidable_linear_order_𝔼 : decidable_linear_order 𝔼
 
 noncomputable instance lattice_𝔼 : lattice 𝔼 := by apply_instance
 
-lemma lt_mul_of_div_lt {a b c : 𝔼} (hc : 0 < c) (h : a / c < b) : a < b * c :=
-begin
-  calc
-    a = a / c * c : by rw (div_mul_cancel _ (ne.symm (ne_of_lt hc)))
-  ... < b * c     : by {rw mul_lt_mul_right, exact h, exact hc}
-end
-
 lemma lemma56 : ∀ {x y : 𝔼} (hxy : x < y), ∃ (M N : ℤ) (hN : 0 < N), (N : 𝔼) * x < (M : 𝔼) ∧ (M : 𝔼) < (N : 𝔼) * y :=
 begin
   intros x y hxy,
@@ -2182,13 +2173,13 @@ begin
   use [M, N, int.coe_nat_pos.mpr h1],
   split,
     rw mul_comm,
-    apply mul_lt_of_lt_div,
+    rw ← lt_div_iff,
+      exact hq1,
       exact int.cast_pos.mpr (int.coe_nat_pos.mpr h1),
-    exact hq1,
   rw mul_comm,
-  apply lt_mul_of_div_lt,
-    exact int.cast_pos.mpr (int.coe_nat_pos.mpr h1),
-  exact hq2,
+  rw ← div_lt_iff,
+    exact hq2,
+  exact int.cast_pos.mpr (int.coe_nat_pos.mpr h1),
 end
 
 lemma lemma57 : ∃ C, ∀ (a b : 𝔼), abs (floor (a + b) - floor a - floor b) < C :=
@@ -2233,7 +2224,9 @@ begin
     exact hx,
   use finset.max' K' hK',
   simp_rw ← hK'K,
-  exact ⟨finset.max'_mem K' (hK'), finset.le_max' K' (hK')⟩,
+  use finset.max'_mem K' hK', 
+  intros t ht,
+  use finset.le_max' K' t ht,
 end
 
 lemma lemma59 (K : set ℤ) (hK1 : K.nonempty) (hK2 : bdd_above K) : 
@@ -2493,7 +2486,7 @@ begin
       rw quotient_add_group.eq,
       use 1,
       intro p,
-      simp,
+      norm_num,
     linarith,
   have hn : 0 ≤ n,
     linarith,
@@ -2586,7 +2579,7 @@ begin
       rw [lemma64 N, 𝔼.mul_eq', lemma17],
       simp,
     rw [← heq1, heq2, mul_comm] at H,
-    have := @div_le_of_le_mul 𝔼 (linear_ordered_field_𝔼) (↑M) (↑N) (↑(T_sup_f T hT1.1 hT1.2)) (int.cast_pos.mpr hN) H,
+    have := (@div_le_iff' 𝔼 (linear_ordered_field_𝔼) (↑M) (↑N) (↑(T_sup_f T hT1.1 hT1.2)) (int.cast_pos.mpr hN)).mpr H,
     linarith, },
   { exfalso,
     simp at hT1,
@@ -2705,4 +2698,3 @@ noncomputable instance : conditionally_complete_linear_order 𝔼 :=
   le_cInf := T_le_cInf,
   ..decidable_linear_order_𝔼,
   ..lattice_𝔼 }
-
