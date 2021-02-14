@@ -1,0 +1,8 @@
+[package]
+name = "banach-tarski"
+version = "0.1"
+lean_version = "leanprover-community/lean:3.21.0"
+path = "src"
+
+[dependencies]
+mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "1444fa52f7a93c4d1ffade3aa0dd05d029e94928"}
